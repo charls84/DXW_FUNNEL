@@ -9,11 +9,11 @@ export function CanvasCardActions({ canvasId, workspaceId, name }: { canvasId: s
 
   if (confirming) {
     return (
-      <div className="mt-3 space-y-2 border-t border-line pt-3">
-        <p className="text-xs">¿Eliminar &quot;{name}&quot;? Se borran el mapa, sus versiones y sus links compartidos. No se puede deshacer.</p>
+      <div className="space-y-2 border-t border-line pt-3">
+        <p className="text-xs">¿Enviar &quot;{name}&quot; a la papelera? Podrás restaurarlo durante 30 días. Sus links compartidos dejarán de funcionar.</p>
         <div className="flex gap-2">
           <button type="button" disabled={pending} onClick={() => start(() => deleteCanvas(canvasId, workspaceId))} className="btn-danger py-1 text-xs">
-            {pending ? "Eliminando…" : "Eliminar mapa"}
+            {pending ? "Enviando…" : "Enviar a la papelera"}
           </button>
           <button type="button" disabled={pending} onClick={() => setConfirming(false)} className="btn-secondary py-1 text-xs">Cancelar</button>
         </div>
@@ -22,7 +22,7 @@ export function CanvasCardActions({ canvasId, workspaceId, name }: { canvasId: s
   }
 
   return (
-    <div className="mt-3 flex gap-3 border-t border-line pt-3 text-xs">
+    <div className="flex gap-3 border-t border-line pt-3 text-xs">
       <button type="button" disabled={pending} onClick={() => start(() => duplicateCanvas(canvasId))} className="text-accent hover:underline">
         {pending ? "Duplicando…" : "Duplicar"}
       </button>

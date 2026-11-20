@@ -1,7 +1,8 @@
 import type { CanvasDoc, ChecklistItem, DocEdge, DocNode, LineType, NodeCategory } from "./types";
+import { CRM_EVENT_TYPES, type CrmEventType, type StepCrmMatch } from "@/lib/crm/types";
 import { DEFAULT_FORECAST, type EdgeForecast, type ForecastSettings, type InputMode, type Period, type Scenario, type StepForecast } from "@/lib/forecast/types";
 
-const CATEGORIES: NodeCategory[] = ["source", "page", "action", "offline", "process", "crm"];
+const CATEGORIES: NodeCategory[] = ["source", "brand", "page", "action", "offline", "process", "crm"];
 const LINE_TYPES: LineType[] = ["direct", "indirect", "visual"];
 const MAX_NODES = 1000;
 const MAX_EDGES = 2000;
@@ -72,6 +73,8 @@ export function forecastSettings(v: unknown): ForecastSettings | undefined {
     scenario: SCENARIOS.includes(v.scenario as Scenario) ? (v.scenario as Scenario) : "expected",
     currency: /^[A-Z]{3}$/.test(str(v.currency)) ? str(v.currency) : DEFAULT_FORECAST.currency,
     showLayer: v.showLayer !== false,
+    view: v.view === "actual" || v.view === "compare" ? v.view : "forecast",
+    animateFlow: v.animateFlow === true || undefined,
     expenses: (Array.isArray(v.expenses) ? v.expenses : [])
       .filter(isObj)
       .slice(0, 50)
@@ -85,6 +88,16 @@ export function forecastSettings(v: unknown): ForecastSettings | undefined {
       conservative: { rate: factor(cons.rate, DEFAULT_FORECAST.factors.conservative.rate), volume: factor(cons.volume, DEFAULT_FORECAST.factors.conservative.volume) },
       optimistic: { rate: factor(opt.rate, DEFAULT_FORECAST.factors.optimistic.rate), volume: factor(opt.volume, DEFAULT_FORECAST.factors.optimistic.volume) },
     },
+  };
+}
+
+function crmMatch(v: unknown): StepCrmMatch | undefined {
+  if (!isObj(v) || !CRM_EVENT_TYPES.includes(v.type as CrmEventType)) return undefined;
+  return {
+    type: v.type as CrmEventType,
+    pipeline: optStr(v.pipeline, 120),
+    stage: optStr(v.stage, 120),
+    source: optStr(v.source, 120),
   };
 }
 
@@ -113,11 +126,13 @@ function node(v: unknown): DocNode | null {
         label: str(d.label, 120),
         url: optStr(d.url, 500),
         iconUrl: safeImageUrl(d.iconUrl),
+        iconSize: d.iconSize === "sm" || d.iconSize === "lg" || d.iconSize === "xl" ? d.iconSize : undefined,
         thumbnailUrl: safeImageUrl(d.thumbnailUrl),
         notes: optStr(d.notes, MAX_TEXT),
         checklist: checklist(d.checklist),
         process,
         forecast: stepForecast(d.forecast),
+        crm: crmMatch(d.crm),
       },
     };
   }
@@ -126,7 +141,9 @@ function node(v: unknown): DocNode | null {
   }
   if (v.type === "text") {
     const size = ["sm", "md", "lg", "xl"].includes(d.size as string) ? (d.size as "sm" | "md" | "lg" | "xl") : "md";
-    return { id, type: "text", position, data: { text: str(d.text, 1000), size } };
+    const color = /^#[0-9a-f]{6}$/i.test(str(d.color)) ? str(d.color) : undefined;
+    const align = d.align === "center" || d.align === "right" ? d.align : undefined;
+    return { id, type: "text", position, data: { text: str(d.text, 1000), size, color, bold: d.bold === true || undefined, align } };
   }
   if (v.type === "shape") {
     return {
@@ -136,7 +153,7 @@ function node(v: unknown): DocNode | null {
       width: num(v.width, 240),
       height: num(v.height, 160),
       data: {
-        shape: d.shape === "ellipse" ? "ellipse" : "rect",
+        shape: d.shape === "ellipse" || d.shape === "triangle" ? d.shape : "rect",
         label: optStr(d.label, 120),
         color: /^#[0-9a-f]{6}$/i.test(str(d.color)) ? str(d.color) : "#1d5bd6",
       },
@@ -187,5 +204,6 @@ export function sanitizeDoc(input: unknown): CanvasDoc {
     checklist: checklist(src.checklist),
     viewport: vp,
     forecast: forecastSettings(src.forecast),
+    mode: src.mode === "prototype" ? "prototype" : undefined,
   };
 }

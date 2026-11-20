@@ -2,14 +2,14 @@
 
 import { useRef, useState } from "react";
 
-export const IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
+export const IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif", "image/svg+xml"];
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
 export type UploadResult = { ok: true; url: string } | { ok: false; error: string };
 export type UploadImage = (file: File) => Promise<UploadResult>;
 
 export function validateImage(file: File): string | null {
-  if (!IMAGE_TYPES.includes(file.type)) return "Usa una imagen PNG, JPG, WEBP o GIF.";
+  if (!IMAGE_TYPES.includes(file.type)) return "Usa una imagen PNG, JPG, SVG, WEBP o GIF.";
   if (file.size > MAX_IMAGE_BYTES) return "La imagen pesa más de 5 MB. Usa una más liviana.";
   return null;
 }

@@ -3,9 +3,19 @@
 import { createContext, useContext } from "react";
 import type { ForecastResult } from "@/lib/forecast/engine";
 import type { ForecastSettings, Scenario } from "@/lib/forecast/types";
+import type { ActualsResult, ExplorerCatalog } from "@/lib/crm/actuals";
+
+export type CrmState = { available: boolean; loading: boolean; error: string | null };
 
 export type ForecastView = {
   settings: ForecastSettings;
+  /** Datos reales del CRM en los últimos `settings.days` días (null si no hay CRM o no cargó). */
+  actual: ActualsResult | null;
+  /** Mismo cálculo para el período anterior (los N días previos), para comparar tendencias. */
+  previous: ActualsResult | null;
+  /** Orígenes, etapas y eventos que existen en el CRM, con conteos. */
+  explorer: ExplorerCatalog | null;
+  crm: CrmState;
   /** Resultado del escenario seleccionado. */
   result: ForecastResult;
   /** Los tres escenarios, para el resumen comparativo. */
@@ -19,6 +29,18 @@ export const ForecastContext = createContext<ForecastView | null>(null);
 
 export function useForecast() {
   return useContext(ForecastContext);
+}
+
+/** Diferencia relativa real vs simulación. null si la simulación es 0. */
+export function delta(real: number, sim: number): number | null {
+  if (!(sim > 0)) return null;
+  return (real - sim) / sim;
+}
+
+/** Verde si va igual o mejor (±10 %), rojo si está más de 10 % por debajo. */
+export function deltaTone(d: number | null): "good" | "bad" | "neutral" {
+  if (d === null) return "neutral";
+  return d < -0.1 ? "bad" : "good";
 }
 
 export function makeFormatters(currency: string) {

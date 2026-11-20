@@ -7,6 +7,7 @@ import { CanvasEditor, type CustomIcon, type EditorActions, type SaveResult } fr
 import type { RevisionSummary } from "./versions-drawer";
 import type { ShareLinkSummary } from "./share-dialog";
 import type { UploadResult } from "./upload-button";
+import type { CrmEvent } from "@/lib/crm/types";
 
 type ServerActions = {
   save: (doc: CanvasDoc, expectedVersion: number) => Promise<SaveResult>;
@@ -22,6 +23,7 @@ type ServerActions = {
   listIcons: () => Promise<CustomIcon[]>;
   addIcon: (name: string, url: string) => Promise<{ ok: true; icon: CustomIcon } | { ok: false }>;
   deleteIcon: (id: string) => Promise<{ ok: boolean }>;
+  loadCrmEvents: (fromIso: string, toIso: string) => Promise<CrmEvent[]>;
 };
 
 type Props = {
@@ -62,6 +64,7 @@ export function CanvasPageClient({ workspaceId, name, doc, version, readOnly, ta
       icons: { list: server.listIcons, add: server.addIcon, remove: server.deleteIcon },
       share: { list: server.listShareLinks, create: server.createShareLink, revoke: server.revokeShareLink },
       details: { setTags: server.setTags, setTemplate: server.setTemplate },
+      loadCrmEvents: server.loadCrmEvents,
     };
   }, [server, supabase.key, supabase.url, workspaceId]);
 

@@ -1,6 +1,7 @@
 import { getCatalogItem } from "./catalog";
 import type { CanvasDoc, DocEdge, DocNode, LineType, ProcessInfo } from "./types";
 import { DEFAULT_FORECAST, type ForecastSettings, type StepForecast } from "@/lib/forecast/types";
+import type { StepCrmMatch } from "@/lib/crm/types";
 
 export type TemplateKey = "blank" | "dxw-sales-process" | "booked-call" | "lead-magnet" | "webinar";
 
@@ -34,7 +35,7 @@ export const TEMPLATES: TemplateMeta[] = [
   },
 ];
 
-type StepOpts = { label?: string; url?: string; process?: ProcessInfo; notes?: string; forecast?: StepForecast };
+type StepOpts = { label?: string; url?: string; process?: ProcessInfo; notes?: string; forecast?: StepForecast; crm?: StepCrmMatch };
 type LinkOpts = { type?: LineType; label?: string; handles?: [string, string]; rate?: number };
 
 class Builder {
@@ -48,7 +49,7 @@ class Builder {
       id,
       type: "step",
       position: { x, y },
-      data: { catalogKey: key, category: item.category, label: opts.label ?? item.label, url: opts.url, process: opts.process, notes: opts.notes, forecast: opts.forecast },
+      data: { catalogKey: key, category: item.category, label: opts.label ?? item.label, url: opts.url, process: opts.process, notes: opts.notes, forecast: opts.forecast, crm: opts.crm },
     });
     return id;
   }
@@ -92,21 +93,21 @@ function salesProcess(): CanvasDoc {
   b.text("Proceso comercial DXW", 0, -170, "xl");
   b.text("Borrador: reemplaza etapas, responsables y cifras por los reales del CRM.", 0, -110, "sm");
 
-  const referral = b.step("src-referral", 0, -20, { forecast: monthly(6) });
-  const linkedin = b.step("src-linkedin", 0, 110, { forecast: monthly(10) });
-  const web = b.step("src-organic-search", 0, 240, { label: "Sitio web", forecast: monthly(8) });
-  const event = b.step("src-event", 0, 370, { forecast: monthly(4) });
+  const referral = b.step("src-referral", 0, -20, { forecast: monthly(6), crm: { type: "lead_created", source: "Referido" } });
+  const linkedin = b.step("src-linkedin", 0, 110, { forecast: monthly(10), crm: { type: "lead_created", source: "LinkedIn" } });
+  const web = b.step("src-organic-search", 0, 240, { label: "Sitio web", forecast: monthly(8), crm: { type: "lead_created", source: "Sitio web" } });
+  const event = b.step("src-event", 0, 370, { forecast: monthly(4), crm: { type: "lead_created", source: "Evento" } });
 
-  const lead = b.step("crm-lead", COL, 175, { process: { owner: "Comercial", slaHours: 24, tool: "CRM DXW" } });
+  const lead = b.step("crm-lead", COL, 175, { process: { owner: "Comercial", slaHours: 24, tool: "CRM DXW" }, crm: { type: "lead_created" } });
   [referral, linkedin, web, event].forEach((s) => b.link(s, lead, { rate: 100 }));
 
-  const first = b.step("off-videocall", COL * 2, 175, { label: "Conversación inicial", process: { owner: "Comercial", slaHours: 72 } });
-  const diag = b.step("proc-stage", COL * 3, 175, { label: "Diagnóstico", process: { owner: "Consultor", slaHours: 120 } });
-  const proposal = b.step("crm-proposal", COL * 4, 175, { process: { owner: "Consultor", slaHours: 72 } });
-  const nego = b.step("proc-stage", COL * 5, 175, { label: "Negociación", process: { owner: "Comercial", slaHours: 168 } });
+  const first = b.step("off-videocall", COL * 2, 175, { label: "Conversación inicial", process: { owner: "Comercial", slaHours: 72 }, crm: { type: "stage_changed", stage: "Conversación inicial" } });
+  const diag = b.step("proc-stage", COL * 3, 175, { label: "Diagnóstico", process: { owner: "Consultor", slaHours: 120 }, crm: { type: "stage_changed", stage: "Diagnóstico" } });
+  const proposal = b.step("crm-proposal", COL * 4, 175, { process: { owner: "Consultor", slaHours: 72 }, crm: { type: "stage_changed", stage: "Propuesta enviada" } });
+  const nego = b.step("proc-stage", COL * 5, 175, { label: "Negociación", process: { owner: "Comercial", slaHours: 168 }, crm: { type: "stage_changed", stage: "Negociación" } });
   const decision = b.step("proc-decision", COL * 6, 175, { label: "¿Cierra?" });
-  const won = b.step("crm-won", COL * 7, 60, { forecast: { avgValue: 4000 } });
-  const lost = b.step("crm-lost", COL * 7, 300, { notes: "Registrar el motivo de pérdida." });
+  const won = b.step("crm-won", COL * 7, 60, { forecast: { avgValue: 4000 }, crm: { type: "deal_won" } });
+  const lost = b.step("crm-lost", COL * 7, 300, { notes: "Registrar el motivo de pérdida.", crm: { type: "deal_lost" } });
   const onboarding = b.step("proc-stage", COL * 8, 60, { label: "Onboarding", process: { owner: "Implementación", slaHours: 120 } });
   const impl = b.step("proc-stage", COL * 9, 60, { label: "Implementación", process: { owner: "Implementación" } });
   const followUp = b.step("crm-renewal", COL * 10, 60, { label: "Seguimiento y recompra", process: { owner: "Comercial" }, forecast: { avgValue: 1500 } });

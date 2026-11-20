@@ -14,6 +14,14 @@ Herramienta interna de DOUX.WORK para mapear y simular procesos y embudos, los p
     - Escenarios conservador, esperado y optimista (factores del mapa o valores por línea).
     - Números sobre el mapa y un resumen con ingresos, gasto, utilidad, ROI, ROAS y costo por venta.
     - Motor en `src/lib/forecast/engine.ts`, con tests.
+  - Fase 3 lista: datos reales del CRM.
+    - Webhook firmado con HMAC (`/api/crm/ingest/<clave>`) e importación CSV del histórico.
+    - Cada paso del mapa se conecta a un evento o etapa del CRM.
+    - Vistas **Real** y **Comparar**: contactos reales, tasas, tiempo en cada paso, SLA y ventas e ingresos reales frente a la simulación.
+    - Guía para el equipo del CRM: [docs/05-integracion-crm.md](docs/05-integracion-crm.md).
+  - Biblioteca con 91 redes y herramientas (WhatsApp, Instagram, Facebook, TikTok, Meta Ads, Google Ads, HubSpot, Calendly, Stripe, Nequi…) con logo y color de marca, vía `simple-icons` (CC0).
+  - Modo **Prototipo** por mapa (solo el flujo, sin simulación ni CRM), tamaño del ícono por paso y logos que se suben desde el paso y quedan en la biblioteca del workspace.
+  - Revisión frente a Funnelytics (20 nov 2026): menú contextual, copiar/pegar, alineación, explorador del CRM, panel de personas, tendencia, PNG ×1–×3 y CSV, ayuda, flujo animado, estilos de texto, papelera de 30 días y miniaturas en la lista. Matriz completa en [docs/06-revision-vs-funnelytics.md](docs/06-revision-vs-funnelytics.md).
 - **Probar sin base de datos:** `npm run dev` y abrir http://localhost:3000/dev/canvas (editor) y http://localhost:3000/dev/shared (vista del cliente)
 
 ## Documentación
@@ -23,6 +31,8 @@ Herramienta interna de DOUX.WORK para mapear y simular procesos y embudos, los p
 | [docs/02-diseno-dxw-funnel.md](docs/02-diseno-dxw-funnel.md) | Diseño de DXW Funnel, modelo de datos y roadmap |
 | [docs/03-funcionalidades-y-manual.md](docs/03-funcionalidades-y-manual.md) | Recorrido funcional de Funnelytics y su manual oficial |
 | [docs/04-setup-fase-0.md](docs/04-setup-fase-0.md) | Cómo configurar Supabase y Google para correr la app |
+| [docs/05-integracion-crm.md](docs/05-integracion-crm.md) | Contrato del webhook y CSV para el equipo del CRM |
+| [docs/06-revision-vs-funnelytics.md](docs/06-revision-vs-funnelytics.md) | Matriz funcionalidad por funcionalidad frente a Funnelytics y pendientes por fase |
 
 ## Arranque rápido
 ```

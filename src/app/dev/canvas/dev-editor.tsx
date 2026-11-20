@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CanvasEditor, type CustomIcon, type EditorActions } from "@/components/canvas/canvas-editor";
 import { buildTemplate } from "@/lib/canvas/templates";
+import { sampleSalesEvents } from "@/lib/crm/sample";
 import { sanitizeDoc } from "@/lib/canvas/doc";
 import type { CanvasDoc } from "@/lib/canvas/types";
 import type { RevisionSummary } from "@/components/canvas/versions-drawer";
@@ -92,6 +93,10 @@ export default function DevEditor() {
         write(ICON_KEY, read<CustomIcon[]>(ICON_KEY, []).filter((i) => i.id !== id));
         return { ok: true };
       },
+    },
+    // Datos reales de ejemplo (deterministas) en lugar del CRM.
+    async loadCrmEvents() {
+      return sampleSalesEvents(365);
     },
     details: {
       async setTags() {

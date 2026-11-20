@@ -194,6 +194,15 @@ DXW tiene un CRM construido en casa. Es la fuente principal de datos del proceso
 - **Mapa ↔ CRM:** al configurar un nodo de tipo CRM, el panel lista pipelines y etapas reales del CRM. El lead time entre etapas y el SLA del nodo salen de `occurred_at`.
 - **Unión con la web:** si el formulario del sitio manda el `dxw_vid` del visitante al CRM (campo oculto), se une el recorrido web con el contacto. Es lo mismo que Funnelytics hace con GHL (doc 03 §3.7).
 
+**Implementado (Fase 3, 20 nov 2026):** opción A (webhook firmado) más importación CSV; contrato en [05-integracion-crm.md](05-integracion-crm.md).
+- **La firma se verifica en Postgres** (`ingest_crm_events`, pgcrypto). No se usa clave de servicio.
+- **Motor** de datos reales en `src/lib/crm/actuals.ts`: contactos por paso, tasas A→B, mediana de días entre pasos, tiempo en el paso y SLA.
+- **Período de los datos reales:** el mismo horizonte de la simulación.
+- **Pendiente:**
+  - La opción B (lectura directa de Neon) queda descartada mientras el webhook funcione.
+  - Límite de solicitudes por minuto en el webhook.
+  - Las líneas que pasan por pasos sin conexión al CRM muestran "Sin datos".
+
 ---
 
 ## 7. Tracker `dxw.js`

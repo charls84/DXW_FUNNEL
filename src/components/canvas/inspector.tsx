@@ -1,14 +1,19 @@
 "use client";
 
+import { useState } from "react";
 import { Trash2 } from "lucide-react";
 import { CATALOG, CATEGORY_META, getCatalogItem } from "@/lib/canvas/catalog";
-import { LINE_TYPE_HELP, LINE_TYPE_LABELS, type ChecklistItem, type EdgeData, type ImageData, type LineType, type ShapeData, type StepData, type TextData } from "@/lib/canvas/types";
+import { CANVAS_MODE_HELP, CANVAS_MODE_LABELS, ICON_SIZES, LINE_TYPE_HELP, LINE_TYPE_LABELS, type CanvasMode, type ChecklistItem, type EdgeData, type IconSize, type ImageData, type LineType, type ShapeData, type StepData, type TextData } from "@/lib/canvas/types";
 import type { AppNode, FlowEdgeT } from "./flow-types";
 import type { CustomIcon } from "./canvas-editor";
 import { ChecklistEditor } from "./checklist-editor";
 import { TagsEditor } from "./tags-editor";
 import { UploadButton, type UploadImage } from "./upload-button";
 import { CanvasForecastSection, EdgeForecastSection, StepForecastSection } from "./inspector-forecast";
+import { StepCrmSection } from "./inspector-crm";
+import { useForecast } from "./forecast-context";
+import type { StepCrmMatch } from "@/lib/crm/types";
+import type { PeopleTarget } from "./people-drawer";
 import type { ForecastSettings } from "@/lib/forecast/types";
 
 type Props = {
@@ -26,6 +31,13 @@ type Props = {
   customIcons?: CustomIcon[];
   details?: { tags: string[]; isTemplate: boolean; onTags: (t: string[]) => void; onTemplate: (v: boolean) => void } | null;
   onForecastSettings?: (patch: Partial<ForecastSettings>) => void;
+  onShowPeople?: (target: PeopleTarget) => void;
+  /** Modo prototipo: solo el flujo; se ocultan simulación y CRM. */
+  prototype?: boolean;
+  mode?: CanvasMode;
+  onMode?: (m: CanvasMode) => void;
+  /** Al subir un logo desde un paso, también se guarda en la biblioteca del equipo. */
+  onIconUploaded?: (url: string, file: File) => void;
 };
 
 const SHAPE_COLORS = ["#1d5bd6", "#0f766e", "#c2410c", "#7c3aed", "#be185d", "#334155"];
@@ -77,11 +89,12 @@ export function Inspector(p: Props) {
             />
           </div>
         </Section>
-        {data.lineType !== "visual" && (
+        {data.lineType !== "visual" && !p.prototype && (
           <Section title="Simulación">
             <EdgeForecastSection edgeId={p.edge.id} value={data.forecast} onChange={(forecast) => p.onEdgeData(p.edge!.id, { forecast })} readOnly={ro} />
           </Section>
         )}
+        {data.lineType !== "visual" && p.onShowPeople && <EdgePeople edgeId={p.edge.id} onShow={() => p.onShowPeople!({ kind: "edge", id: p.edge!.id, label: data.label || "línea" })} />}
         {!ro && <DeleteButton label="Eliminar línea" onClick={p.onDelete} />}
       </div>
     );
@@ -133,7 +146,7 @@ export function Inspector(p: Props) {
           </fieldset>
         </Section>
 
-        {!ro && (p.upload || (p.customIcons && p.customIcons.length > 0) || d.iconUrl || d.thumbnailUrl) && (
+        {!ro && (
           <Section title="Imagen del paso">
             {d.category === "page" && (
               <div className="space-y-2">
@@ -165,15 +178,45 @@ export function Inspector(p: Props) {
                     <option key={i.id} value={i.url}>{i.name}</option>
                   ))}
                 </select>
-                {p.upload && <UploadButton upload={p.upload} onUploaded={(url) => set({ iconUrl: url })} label="Subir ícono solo para este paso" />}
+                {p.upload && p.onIconUploaded ? (
+                  <>
+                    <UploadButton upload={p.upload} onUploaded={(url, file) => { set({ iconUrl: url }); p.onIconUploaded!(url, file); }} label="Subir logo" />
+                    <p className="field-help">PNG, JPG, SVG, WEBP o GIF hasta 5 MB. Queda en la biblioteca del equipo (Elementos → Logos e íconos del equipo) para usarlo en otros pasos.</p>
+                  </>
+                ) : (
+                  p.upload && <UploadButton upload={p.upload} onUploaded={(url) => set({ iconUrl: url })} label="Subir ícono solo para este paso" />
+                )}
+                <div className="pt-1">
+                  <span className="field-label">Tamaño del ícono</span>
+                  <div role="group" aria-label="Tamaño del ícono" className="grid grid-cols-4 gap-1">
+                    {(Object.keys(ICON_SIZES) as IconSize[]).map((s) => {
+                      const active = (d.iconSize ?? "md") === s;
+                      return (
+                        <button
+                          key={s}
+                          type="button"
+                          aria-pressed={active}
+                          onClick={() => set({ iconSize: s === "md" ? undefined : s })}
+                          className={`rounded border px-1 py-1 text-[11px] ${active ? "border-accent bg-accent/10 text-accent" : "border-line text-muted hover:bg-canvas hover:text-ink"}`}
+                        >
+                          {ICON_SIZES[s].label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             )}
           </Section>
         )}
 
-        <Section title="Simulación">
-          <StepForecastSection nodeId={n.id} value={d.forecast} onChange={(forecast) => set({ forecast })} readOnly={ro} />
-        </Section>
+        <CrmSectionWrapper nodeId={n.id} value={d.crm} onChange={(crm) => set({ crm })} readOnly={ro} onShowPeople={p.onShowPeople ? () => p.onShowPeople!({ kind: "step", id: n.id, label: d.label || item.label }) : undefined} />
+
+        {!p.prototype && (
+          <Section title="Simulación">
+            <StepForecastSection nodeId={n.id} value={d.forecast} onChange={(forecast) => set({ forecast })} readOnly={ro} />
+          </Section>
+        )}
 
         {showProcess && (
           <Section title="Responsable y tiempos">
@@ -231,14 +274,36 @@ export function Inspector(p: Props) {
         <Section title="Texto">
           <fieldset disabled={ro} className="space-y-3">
             <textarea value={n.data.text} onChange={(e) => p.onNodeData(n.id, { text: e.target.value })} rows={4} maxLength={1000} className="input" aria-label="Texto" />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="text-size" className="field-label">Tamaño</label>
+                <select id="text-size" value={n.data.size} onChange={(e) => p.onNodeData(n.id, { size: e.target.value as TextData["size"] })} className="input">
+                  <option value="sm">Pequeño</option>
+                  <option value="md">Normal</option>
+                  <option value="lg">Subtítulo</option>
+                  <option value="xl">Título</option>
+                </select>
+              </div>
+              <div>
+                <label htmlFor="text-align" className="field-label">Alineación</label>
+                <select id="text-align" value={n.data.align ?? "left"} onChange={(e) => p.onNodeData(n.id, { align: e.target.value === "left" ? undefined : (e.target.value as TextData["align"]) })} className="input">
+                  <option value="left">Izquierda</option>
+                  <option value="center">Centro</option>
+                  <option value="right">Derecha</option>
+                </select>
+              </div>
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={!!n.data.bold} onChange={(e) => p.onNodeData(n.id, { bold: e.target.checked || undefined })} /> Negrita
+            </label>
             <div>
-              <label htmlFor="text-size" className="field-label">Tamaño</label>
-              <select id="text-size" value={n.data.size} onChange={(e) => p.onNodeData(n.id, { size: e.target.value as TextData["size"] })} className="input">
-                <option value="sm">Pequeño</option>
-                <option value="md">Normal</option>
-                <option value="lg">Subtítulo</option>
-                <option value="xl">Título</option>
-              </select>
+              <span className="field-label">Color</span>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={() => p.onNodeData(n.id, { color: undefined })} className={`h-7 w-7 rounded-full border border-line bg-surface text-[10px] text-ink ${!n.data.color ? "ring-2 ring-offset-2 ring-ink" : ""}`} aria-label="Color automático" title="Automático">Aa</button>
+                {SHAPE_COLORS.map((c) => (
+                  <button key={c} type="button" onClick={() => p.onNodeData(n.id, { color: c })} className={`h-7 w-7 rounded-full ${n.data.color === c ? "ring-2 ring-offset-2 ring-ink" : ""}`} style={{ backgroundColor: c }} aria-label={`Color ${c}`} />
+                ))}
+              </div>
             </div>
           </fieldset>
         </Section>
@@ -262,6 +327,7 @@ export function Inspector(p: Props) {
               <select id="shape-kind" value={n.data.shape} onChange={(e) => p.onNodeData(n.id, { shape: e.target.value as ShapeData["shape"] })} className="input">
                 <option value="rect">Rectángulo</option>
                 <option value="ellipse">Elipse</option>
+                <option value="triangle">Triángulo</option>
               </select>
             </div>
             <div>
@@ -336,7 +402,8 @@ export function Inspector(p: Props) {
 
   return (
     <div>
-      {p.onForecastSettings && (
+      {p.mode && p.onMode && <ModeSection mode={p.mode} onMode={p.onMode} readOnly={ro} />}
+      {p.onForecastSettings && !p.prototype && (
         <Section title="Simulación del mapa">
           <CanvasForecastSection onChange={p.onForecastSettings} readOnly={ro} />
         </Section>
@@ -388,6 +455,53 @@ export function Inspector(p: Props) {
   );
 }
 
+/** Modo del mapa. En prototipo queda plegado en una línea; el selector aparece al hacer clic. */
+function ModeSection({ mode, onMode, readOnly }: { mode: CanvasMode; onMode: (m: CanvasMode) => void; readOnly: boolean }) {
+  const [open, setOpen] = useState(false);
+  const collapsed = mode === "prototype" && !open;
+  return (
+    <Section title="Modo del mapa">
+      {collapsed ? (
+        <div className="flex items-center justify-between text-sm">
+          <span>{CANVAS_MODE_LABELS[mode]}</span>
+          {!readOnly && (
+            <button type="button" onClick={() => setOpen(true)} className="text-xs text-accent hover:underline">Cambiar</button>
+          )}
+        </div>
+      ) : (
+        <>
+          <label htmlFor="canvas-mode" className="sr-only">Modo del mapa</label>
+          <select
+            id="canvas-mode"
+            value={mode}
+            onChange={(e) => { onMode(e.target.value as CanvasMode); setOpen(false); }}
+            disabled={readOnly}
+            className="input"
+          >
+            {(Object.keys(CANVAS_MODE_LABELS) as CanvasMode[]).map((m) => (
+              <option key={m} value={m}>{CANVAS_MODE_LABELS[m]}</option>
+            ))}
+          </select>
+          <p className="field-help">{CANVAS_MODE_HELP[mode]}{mode === "prototype" ? " Los números que ya tenga el mapa se conservan y vuelven a verse al pasar a Completo." : ""}</p>
+        </>
+      )}
+    </Section>
+  );
+}
+
+function EdgePeople({ edgeId, onShow }: { edgeId: string; onShow: () => void }) {
+  const fc = useForecast();
+  const real = fc?.actual?.edges[edgeId];
+  if (!fc?.crm.available || !real || real.people === 0) return null;
+  return (
+    <div className="px-4 pb-2">
+      <button type="button" onClick={onShow} className="text-xs font-medium text-accent hover:underline">
+        Ver quiénes pasaron por esta línea ({fc.count(real.people)})
+      </button>
+    </div>
+  );
+}
+
 function DeleteButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
     <div className="p-4">
@@ -395,5 +509,16 @@ function DeleteButton({ label, onClick }: { label: string; onClick: () => void }
         <Trash2 size={14} aria-hidden /> {label}
       </button>
     </div>
+  );
+}
+
+/** La sección de CRM solo aparece si el mapa tiene acceso a datos reales. */
+function CrmSectionWrapper(props: { nodeId: string; value: StepCrmMatch | undefined; onChange: (v: StepCrmMatch | undefined) => void; readOnly: boolean; onShowPeople?: () => void }) {
+  const fc = useForecast();
+  if (!fc?.crm.available) return null;
+  return (
+    <Section title="Datos reales (CRM)">
+      <StepCrmSection {...props} />
+    </Section>
   );
 }

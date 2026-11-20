@@ -31,6 +31,8 @@ export type ForecastSettings = {
   scenario: Scenario;                 // escenario que se muestra en el mapa
   currency: string;                   // ISO 4217
   showLayer: boolean;                 // mostrar números sobre el mapa
+  view: "forecast" | "actual" | "compare"; // qué números mostrar: simulación, reales o ambos
+  animateFlow?: boolean;              // capa "Flujo": líneas animadas
   expenses: ManualExpense[];
   factors: Record<Exclude<Scenario, "expected">, ScenarioFactors>;
 };
@@ -45,6 +47,7 @@ export const DEFAULT_FORECAST: ForecastSettings = {
   scenario: "expected",
   currency: "USD",
   showLayer: true,
+  view: "forecast",
   expenses: [],
   factors: DEFAULT_FACTORS,
 };

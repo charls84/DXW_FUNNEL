@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import type { FormState } from "@/app/canvas-actions";
 import type { TemplateKey, TemplateMeta } from "@/lib/canvas/templates";
+import { CANVAS_MODE_HELP, CANVAS_MODE_LABELS, type CanvasMode } from "@/lib/canvas/types";
 
 type DxwTemplate = { id: string; name: string; kind: "funnel" | "process"; workspaceName: string; nodeCount: number };
 
@@ -34,6 +35,7 @@ export function CreateCanvasForm({
     return !o || value === "blank" ? "" : o.name;
   };
   const [name, setName] = useState(nameFor(defaultTemplate));
+  const [mode, setMode] = useState<CanvasMode>("complete");
 
   function choose(value: string) {
     if (!name || name === nameFor(selected)) setName(nameFor(value));
@@ -66,6 +68,20 @@ export function CreateCanvasForm({
       <fieldset disabled={pending} className="space-y-4">
         {renderGroup("Plantillas de DXW", own)}
         {renderGroup(own.length ? "Plantillas base" : "Plantilla", base)}
+        <div>
+          <span className="mb-1.5 block text-xs font-semibold text-muted">Modo</span>
+          <div className="grid grid-cols-2 gap-2">
+            {(Object.keys(CANVAS_MODE_LABELS) as CanvasMode[]).map((m) => (
+              <label key={m} className={`flex cursor-pointer gap-2 rounded-md border p-3 text-sm ${mode === m ? "border-accent bg-accent/5" : "border-line hover:bg-canvas"}`}>
+                <input type="radio" name="mode" value={m} checked={mode === m} onChange={() => setMode(m)} className="mt-0.5" />
+                <span>
+                  <span className="font-medium">{CANVAS_MODE_LABELS[m]}</span>
+                  <span className="block text-xs text-muted">{CANVAS_MODE_HELP[m]}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
         <div>
           <label htmlFor="canvas-name" className="field-label">Nombre del mapa</label>
           <input id="canvas-name" name="name" required maxLength={120} value={name} onChange={(e) => setName(e.target.value)} className="input" placeholder="Ej.: Embudo de captación Q1" />

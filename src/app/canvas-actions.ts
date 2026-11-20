@@ -56,6 +56,9 @@ export async function createCanvas(workspaceId: string, _prev: FormState, form: 
     return { error: "Elige una plantilla." };
   }
 
+  // Modo elegido al crear: prototipo (solo flujo) o completo.
+  doc = { ...doc, mode: form.get("mode") === "prototype" ? "prototype" : undefined };
+
   // La simulación usa la moneda del workspace donde se crea el mapa.
   if (doc.forecast) {
     const { data: ws } = await supabase.from("workspaces").select("currency").eq("id", workspaceId).maybeSingle();
@@ -98,12 +101,32 @@ export async function duplicateCanvas(canvasId: string): Promise<void> {
   if (data) redirect(`/canvas/${data.id}`);
 }
 
+/** Envía el mapa a la papelera. Se puede restaurar durante 30 días. */
 export async function deleteCanvas(canvasId: string, workspaceId: string): Promise<void> {
-  const { canEdit } = await requireEditor();
+  const { member, canEdit } = await requireEditor();
   if (!canEdit) return;
   const supabase = await createClient();
-  await supabase.from("canvases").delete().eq("id", canvasId);
+  await supabase.from("canvases").update({ deleted_at: new Date().toISOString(), is_template: false, updated_by: member.userId }).eq("id", canvasId).is("deleted_at", null);
   revalidatePath(`/workspaces/${workspaceId}`);
+}
+
+export async function restoreCanvas(canvasId: string, workspaceId: string): Promise<{ ok: boolean }> {
+  const { member, canEdit } = await requireEditor();
+  if (!canEdit) return { ok: false };
+  const supabase = await createClient();
+  const { data } = await supabase.from("canvases").update({ deleted_at: null, updated_by: member.userId }).eq("id", canvasId).not("deleted_at", "is", null).select("id");
+  revalidatePath(`/workspaces/${workspaceId}`);
+  return { ok: !!data?.length };
+}
+
+/** Borra definitivamente un mapa de la papelera. Solo administradores. */
+export async function purgeCanvas(canvasId: string, workspaceId: string): Promise<{ ok: boolean }> {
+  const member = await getCurrentMember();
+  if (member.role !== "admin") return { ok: false };
+  const supabase = await createClient();
+  const { data } = await supabase.from("canvases").delete().eq("id", canvasId).not("deleted_at", "is", null).select("id");
+  revalidatePath(`/workspaces/${workspaceId}`);
+  return { ok: !!data?.length };
 }
 
 export async function renameCanvas(canvasId: string, name: string): Promise<{ ok: boolean }> {

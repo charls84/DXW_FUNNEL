@@ -14,7 +14,20 @@ export function ChecklistEditor({
   readOnly?: boolean;
 }) {
   const [draft, setDraft] = useState("");
+  const [hideDone, setHideDone] = useState(false);
+  const [copied, setCopied] = useState(false);
   const done = items.filter((i) => i.done).length;
+  const visible = hideDone ? items.filter((i) => !i.done) : items;
+
+  async function copyAll() {
+    try {
+      await navigator.clipboard.writeText(items.map((i) => `${i.done ? "[x]" : "[ ]"} ${i.text}`).join("\n"));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* sin portapapeles: no pasa nada */
+    }
+  }
 
   function add() {
     const text = draft.trim();
@@ -33,8 +46,16 @@ export function ChecklistEditor({
           <span className="text-xs text-muted">{done}/{items.length}</span>
         </div>
       )}
+      {items.length > 0 && (
+        <div className="mb-2 flex items-center justify-between text-[11px] text-muted">
+          <label className="flex items-center gap-1">
+            <input type="checkbox" checked={hideDone} onChange={(e) => setHideDone(e.target.checked)} /> Ocultar completadas
+          </label>
+          <button type="button" onClick={copyAll} className="hover:text-ink hover:underline">{copied ? "Copiado" : "Copiar lista"}</button>
+        </div>
+      )}
       <ul className="space-y-1">
-        {items.map((item) => (
+        {visible.map((item) => (
           <li key={item.id} className="group flex items-start gap-2 text-sm">
             <input
               type="checkbox"

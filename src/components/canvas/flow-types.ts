@@ -30,7 +30,7 @@ export function docToFlow(doc: CanvasDoc): { nodes: AppNode[]; edges: FlowEdgeT[
 export function flowToDoc(
   nodes: AppNode[],
   edges: FlowEdgeT[],
-  extra: Pick<CanvasDoc, "notes" | "checklist" | "viewport" | "forecast">,
+  extra: Pick<CanvasDoc, "notes" | "checklist" | "viewport" | "forecast" | "mode">,
 ): CanvasDoc {
   const docNodes = nodes.map((n): DocNode => {
     const position = { x: Math.round(n.position.x), y: Math.round(n.position.y) };

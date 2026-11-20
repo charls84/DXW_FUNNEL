@@ -3,9 +3,10 @@
 import { memo } from "react";
 import { Handle, NodeResizer, Position, type NodeProps } from "@xyflow/react";
 import { ListChecks, StickyNote } from "lucide-react";
-import { CATEGORY_META, getCatalogItem } from "@/lib/canvas/catalog";
+import { getCatalogItem, stepColors } from "@/lib/canvas/catalog";
+import { ICON_SIZES } from "@/lib/canvas/types";
 import type { ImageNodeT, ShapeNodeT, StepNodeT, TextNodeT } from "./flow-types";
-import { useForecast } from "./forecast-context";
+import { delta, deltaTone, useForecast } from "./forecast-context";
 import { ForecastWidgetNode } from "./forecast-widget";
 
 const HANDLES: { id: string; position: Position }[] = [
@@ -25,30 +26,76 @@ function Handles() {
   );
 }
 
-/** Números de la simulación bajo cada paso (personas, gasto de entrada, ingresos). */
-function StepForecastBadge({ id }: { id: string }) {
+const TONE = { good: "text-success", bad: "text-danger", neutral: "text-muted" } as const;
+
+/** Números bajo cada paso: simulación, datos reales del CRM o la comparación de ambos. */
+function StepForecastBadge({ id, mapped }: { id: string; mapped: boolean }) {
   const fc = useForecast();
   if (!fc || !fc.settings.showLayer) return null;
-  const r = fc.result.steps[id];
-  if (!r) return null;
+  const sim = fc.result.steps[id];
+  const real = fc.actual?.steps[id];
+  const view = fc.settings.view;
+  const box = "mt-1 flex flex-col items-center gap-0.5 rounded-md border border-line bg-surface px-2 py-1 text-[10.5px] leading-tight shadow-sm";
+
+  if (view === "forecast") {
+    if (!sim) return null;
+    return (
+      <div className={box}>
+        <span className="font-semibold text-ink">{fc.count(sim.people)} personas</span>
+        {sim.cost > 0 && <span className="text-danger">Gasto {fc.money(sim.cost)}</span>}
+        {sim.revenue > 0 && <span className="text-success">Ingresos {fc.money(sim.revenue)}</span>}
+        {sim.goalValue > 0 && <span className="text-muted">Meta {fc.money(sim.goalValue)}</span>}
+      </div>
+    );
+  }
+
+  if (!mapped) return <div className={`${box} text-muted`}>Sin conexión al CRM</div>;
+  if (!real) return fc.crm.loading ? <div className={`${box} text-muted`}>Cargando…</div> : null;
+
+  const sla =
+    real.avgHoursInStep !== null
+      ? `${real.avgHoursInStep >= 48 ? `${(real.avgHoursInStep / 24).toLocaleString("es-CO", { maximumFractionDigits: 1 })} d` : `${Math.round(real.avgHoursInStep)} h`} en el paso`
+      : null;
+
+  if (view === "actual") {
+    const prev = fc.previous?.steps[id];
+    const trend = prev ? delta(real.people, prev.people) : null;
+    return (
+      <div className={box}>
+        <span className="font-semibold text-ink">
+          {fc.count(real.people)} reales
+          {trend !== null && (
+            <span className={`ml-1 ${TONE[deltaTone(trend)]}`} title="Frente al período anterior">
+              {trend >= 0 ? "▲" : "▼"} {Math.abs(Math.round(trend * 100))} %
+            </span>
+          )}
+        </span>
+        {real.revenue > 0 && <span className="text-success">Ingresos {fc.money(real.revenue)}</span>}
+        {sla && <span className="text-muted">{sla}</span>}
+        {real.overSla > 0 && <span className="text-danger">{real.overSla} fuera de SLA</span>}
+      </div>
+    );
+  }
+
+  const d = sim ? delta(real.people, sim.people) : null;
   return (
-    <div className="mt-1 flex flex-col items-center gap-0.5 rounded-md border border-line bg-surface px-2 py-1 text-[10.5px] leading-tight shadow-sm">
-      <span className="font-semibold text-ink">{fc.count(r.people)} personas</span>
-      {r.cost > 0 && <span className="text-danger">Gasto {fc.money(r.cost)}</span>}
-      {r.revenue > 0 && <span className="text-success">Ingresos {fc.money(r.revenue)}</span>}
-      {r.goalValue > 0 && <span className="text-muted">Meta {fc.money(r.goalValue)}</span>}
+    <div className={box}>
+      <span className="text-muted">Sim. {sim ? fc.count(sim.people) : "—"}</span>
+      <span className="font-semibold text-ink">Real {fc.count(real.people)}</span>
+      {d !== null && <span className={TONE[deltaTone(d)]}>{d >= 0 ? "+" : ""}{Math.round(d * 100)} %</span>}
     </div>
   );
 }
 
 export const StepNode = memo(function StepNode({ id, data, selected }: NodeProps<StepNodeT>) {
   const item = getCatalogItem(data.catalogKey);
-  const color = CATEGORY_META[data.category]?.color ?? "#334155";
+  const { bg: color, fg: ink } = stepColors(item);
   const Icon = item.icon;
   const isProcess = data.category === "process";
   const done = data.checklist?.filter((c) => c.done).length ?? 0;
   const total = data.checklist?.length ?? 0;
   const meta = [data.process?.owner, data.process?.slaHours ? `SLA ${data.process.slaHours} h` : null].filter(Boolean);
+  const size = ICON_SIZES[data.iconSize ?? "md"];
 
   return (
     <div className="group flex w-[150px] flex-col items-center text-center">
@@ -60,20 +107,20 @@ export const StepNode = memo(function StepNode({ id, data, selected }: NodeProps
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={data.thumbnailUrl} alt="" className="h-[90px] w-full object-cover object-top" draggable={false} />
-          <span className="absolute bottom-1 right-1 flex h-6 w-6 items-center justify-center rounded-full text-white" style={{ backgroundColor: color }}>
+          <span className="absolute bottom-1 right-1 flex h-6 w-6 items-center justify-center rounded-full" style={{ backgroundColor: color, color: ink }}>
             <Icon size={13} aria-hidden />
           </span>
         </div>
       ) : (
         <div
-          className={`flex h-14 w-14 items-center justify-center overflow-hidden text-white shadow-sm transition ${isProcess ? "rounded-xl" : "rounded-full"} ${selected ? "ring-4 ring-accent/40" : ""}`}
-          style={{ backgroundColor: data.iconUrl ? "var(--surface)" : color, border: data.iconUrl ? `2px solid ${color}` : undefined }}
+          className={`flex items-center justify-center overflow-hidden shadow-sm transition ${isProcess ? "rounded-xl" : "rounded-full"} ${selected ? "ring-4 ring-accent/40" : ""}`}
+          style={{ width: size.box, height: size.box, color: ink, backgroundColor: data.iconUrl ? "var(--surface)" : color, border: data.iconUrl ? `2px solid ${color}` : undefined }}
         >
           {data.iconUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={data.iconUrl} alt="" className="h-full w-full object-contain p-1.5" draggable={false} />
           ) : (
-            <Icon size={26} strokeWidth={2} aria-hidden />
+            <Icon size={size.icon} strokeWidth={2} aria-hidden />
           )}
         </div>
       )}
@@ -90,7 +137,7 @@ export const StepNode = memo(function StepNode({ id, data, selected }: NodeProps
           )}
         </div>
       )}
-      <StepForecastBadge id={id} />
+      <StepForecastBadge id={id} mapped={!!data.crm} />
     </div>
   );
 });
@@ -99,7 +146,10 @@ const TEXT_SIZES = { sm: "text-sm", md: "text-base", lg: "text-xl font-semibold"
 
 export const TextNode = memo(function TextNode({ data, selected }: NodeProps<TextNodeT>) {
   return (
-    <div className={`max-w-[640px] whitespace-pre-wrap rounded px-1 text-ink ${TEXT_SIZES[data.size]} ${selected ? "outline outline-2 outline-accent/50" : ""}`}>
+    <div
+      className={`max-w-[640px] whitespace-pre-wrap rounded px-1 ${TEXT_SIZES[data.size]} ${data.bold ? "font-bold" : ""} ${data.align === "center" ? "text-center" : data.align === "right" ? "text-right" : ""} ${selected ? "outline outline-2 outline-accent/50" : ""}`}
+      style={{ color: data.color ?? "var(--ink)" }}
+    >
       {data.text || "Texto"}
     </div>
   );
@@ -110,8 +160,12 @@ export const ShapeNode = memo(function ShapeNode({ data, selected }: NodeProps<S
     <>
       <NodeResizer isVisible={selected} minWidth={80} minHeight={60} color="var(--accent)" />
       <div
-        className={`h-full w-full border-2 ${data.shape === "ellipse" ? "rounded-[50%]" : "rounded-xl"}`}
-        style={{ borderColor: data.color, backgroundColor: `${data.color}14` }}
+        className={`h-full w-full ${data.shape === "triangle" ? "" : "border-2"} ${data.shape === "ellipse" ? "rounded-[50%]" : data.shape === "triangle" ? "" : "rounded-xl"}`}
+        style={
+          data.shape === "triangle"
+            ? { backgroundColor: `${data.color}33`, clipPath: "polygon(50% 0, 100% 100%, 0 100%)" }
+            : { borderColor: data.color, backgroundColor: `${data.color}14` }
+        }
       >
         {data.label && (
           <p className="px-3 pt-2 text-xs font-semibold uppercase tracking-wide" style={{ color: data.color }}>

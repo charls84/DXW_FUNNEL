@@ -19,12 +19,20 @@ import {
   type OnEdgesChange,
   type OnNodesChange,
 } from "@xyflow/react";
-import { ArrowLeft, Calculator, History, ImageDown, ImagePlus, LayoutDashboard, PanelLeftClose, PanelLeftOpen, Redo2, Share2, Square, Type, Undo2 } from "lucide-react";
+import { AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalSpaceAround, AlignStartHorizontal, AlignStartVertical, AlignVerticalSpaceAround, ArrowLeft, Calculator, Download, HelpCircle, History, ImagePlus, LayoutDashboard, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Redo2, Share2, Square, Type, Undo2, Waves } from "lucide-react";
+import { useViewport } from "@xyflow/react";
+import { edgesCsv, stepsCsv } from "./export-csv";
+import { PeopleDrawer, type PeopleTarget } from "./people-drawer";
+import { ContextMenu, type MenuItem } from "./context-menu";
+import { ALIGN_LABELS, alignNodes, type AlignKind } from "./align";
+import { getCatalogItem as catalogItem } from "@/lib/canvas/catalog";
 import { computeForecast, type EngineEdge, type EngineStep } from "@/lib/forecast/engine";
 import { DEFAULT_FORECAST, SCENARIO_LABELS, type ForecastSettings, type Scenario } from "@/lib/forecast/types";
 import { ForecastContext, makeFormatters, type ForecastView } from "./forecast-context";
+import { computeActuals, crmExplorer, type ActualEdge, type ActualStep, type ExplorerEntry } from "@/lib/crm/actuals";
+import { VIEW_LABELS, type CrmEvent, type ViewMode } from "@/lib/crm/types";
 import { CATEGORY_META, getCatalogItem } from "@/lib/canvas/catalog";
-import type { CanvasDoc, ChecklistItem, EdgeData, ImageData, ShapeData, StepData, TextData } from "@/lib/canvas/types";
+import { CANVAS_MODE_LABELS, type CanvasDoc, type CanvasMode, type ChecklistItem, type EdgeData, type ImageData, type ShapeData, type StepData, type TextData } from "@/lib/canvas/types";
 import { EDGE_MARKER, docToFlow, flowToDoc, type AppNode, type FlowEdgeT } from "./flow-types";
 import { nodeTypes } from "./nodes";
 import { edgeTypes } from "./edge";
@@ -61,6 +69,8 @@ export type EditorActions = {
   icons?: IconActions;
   share?: ShareActions;
   details?: DetailActions;
+  /** Eventos del CRM en un período (datos reales). Sin esta acción, el mapa solo simula. */
+  loadCrmEvents?: (fromIso: string, toIso: string) => Promise<CrmEvent[]>;
 };
 
 type Props = {
@@ -118,6 +128,8 @@ export function CanvasEditor(props: Props) {
   );
 }
 
+const modeExtra = (m: CanvasMode) => (m === "prototype" ? ("prototype" as const) : undefined);
+
 function Editor({ name: initialName, initialDoc, initialVersion, readOnly, backHref, actions, mode = "edit", meta, currency }: Props) {
   const shared = mode === "shared";
   const [initialForecast] = useState<ForecastSettings>(() => initialDoc.forecast ?? { ...DEFAULT_FORECAST, currency: currency ?? DEFAULT_FORECAST.currency });
@@ -146,11 +158,28 @@ function Editor({ name: initialName, initialDoc, initialVersion, readOnly, backH
   const [edges, setEdges, baseOnEdgesChange] = useEdgesState<FlowEdgeT>(initial.edges);
   const [notes, setNotes] = useState(initialDoc.notes ?? "");
   const [checklist, setChecklist] = useState<ChecklistItem[]>(initialDoc.checklist ?? []);
+  const [docMode, setDocMode] = useState<CanvasMode>(initialDoc.mode ?? "complete");
+  // Prototipo: solo el flujo. La simulación y el CRM se ocultan pero sus datos se conservan en el documento.
+  const proto = docMode === "prototype";
+  // En prototipo el selector de modo se esconde detrás de la etiqueta "Prototipo" hasta que se hace clic.
+  const [showModePicker, setShowModePicker] = useState(false);
   const [name, setName] = useState(initialName);
   const [showLibrary, setShowLibrary] = useState(!readOnly);
+  // Panel derecho (detalles del elemento y del mapa). Se puede ocultar para ver el mapa más amplio.
+  const [showInspector, setShowInspector] = useState(true);
   const [showVersions, setShowVersions] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [people, setPeople] = useState<PeopleTarget | null>(null);
+  const [menu, setMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
+  const [showExport, setShowExport] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
+  const clipboard = useRef<{ nodes: AppNode[]; edges: FlowEdgeT[] } | null>(null);
+  const lastPointer = useRef<{ x: number; y: number } | null>(null);
   const rf = useReactFlow<AppNode, FlowEdgeT>();
+  const showToast = useCallback((msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3500);
+  }, []);
 
   // ── Deshacer / rehacer ──
   const nodesRef = useRef(nodes);
@@ -170,9 +199,20 @@ function Editor({ name: initialName, initialDoc, initialVersion, readOnly, backH
   const history = useHistory(getCurrent, applySnapshot);
 
   // ── Autoguardado ──
-  const doc = useMemo(() => flowToDoc(nodes, edges, { notes, checklist, forecast }), [nodes, edges, notes, checklist, forecast]);
+  const doc = useMemo(() => flowToDoc(nodes, edges, { notes, checklist, forecast, mode: modeExtra(docMode) }), [nodes, edges, notes, checklist, forecast, docMode]);
+  const changeMode = useCallback(
+    (m: CanvasMode) => {
+      setDocMode(m);
+      setShowModePicker(false);
+      // El resumen de la simulación no se muestra en prototipo: se quita de la selección para no dejar el panel abierto.
+      if (m === "prototype") setNodes((ns) => ns.map((n) => (n.type === "widget" && n.selected ? { ...n, selected: false } : n)));
+    },
+    [setNodes],
+  );
+  // Lo que ve React Flow: en prototipo, el resumen de la simulación queda oculto (sigue guardado en el documento).
+  const visibleNodes = useMemo(() => (proto ? nodes.map((n) => (n.type === "widget" ? { ...n, hidden: true } : n)) : nodes), [nodes, proto]);
   const docString = useMemo(() => JSON.stringify(doc), [doc]);
-  const lastSaved = useRef(JSON.stringify(flowToDoc(initial.nodes, initial.edges, { notes: initialDoc.notes ?? "", checklist: initialDoc.checklist ?? [], forecast: initialForecast })));
+  const lastSaved = useRef(JSON.stringify(flowToDoc(initial.nodes, initial.edges, { notes: initialDoc.notes ?? "", checklist: initialDoc.checklist ?? [], forecast: initialForecast, mode: modeExtra(initialDoc.mode ?? "complete") })));
   const version = useRef(initialVersion);
   const saving = useRef(false);
   const [status, setStatus] = useState<SaveStatus>("saved");
@@ -273,6 +313,17 @@ function Editor({ name: initialName, initialDoc, initialVersion, readOnly, backH
     [history, rf, setNodes],
   );
 
+  const saveIconToLibrary = useCallback(
+    async (url: string, file: File) => {
+      const r = await actions.icons?.add(file.name.replace(/\.[^.]+$/, "").slice(0, 80) || "Logo", url);
+      if (r?.ok) {
+        setCustomIcons((list) => [r.icon, ...list]);
+        showToast("Logo guardado en la biblioteca del equipo.");
+      } else showToast("No pudimos guardar el logo en la biblioteca. Intenta de nuevo.");
+    },
+    [actions.icons, showToast],
+  );
+
   const addCustomIconStep = useCallback(
     (icon: CustomIcon) => {
       const pos = rf.screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
@@ -341,11 +392,66 @@ function Editor({ name: initialName, initialDoc, initialVersion, readOnly, backH
     return { steps, engineEdges };
   }, [nodes, edges]);
 
+  // ── Datos reales del CRM (últimos N días, con N = horizonte de la simulación) ──
+  const [crmData, setCrmData] = useState<{ days: number; events: CrmEvent[]; range: { from: Date; to: Date } } | null>(null);
+  const [crmFailure, setCrmFailure] = useState<{ days: number; message: string } | null>(null);
+  // En modo prototipo no se cargan ni se muestran datos del CRM.
+  const loadCrm = proto ? undefined : actions.loadCrmEvents;
+  useEffect(() => {
+    if (!loadCrm) return;
+    let alive = true;
+    const days = forecast.days;
+    const to = new Date();
+    const from = new Date(to.getTime() - days * 86_400_000);
+    // Se cargan 2N días: el período actual y el anterior, para mostrar tendencias.
+    const fromPrev = new Date(to.getTime() - 2 * days * 86_400_000);
+    loadCrm(fromPrev.toISOString(), to.toISOString())
+      .then((events) => alive && setCrmData({ days, events, range: { from, to } }))
+      .catch(() => alive && setCrmFailure({ days, message: "No pudimos cargar los datos del CRM. Recarga para intentar de nuevo." }));
+    return () => {
+      alive = false;
+    };
+  }, [loadCrm, forecast.days]);
+  // "Cargando" mientras no haya datos ni error para el horizonte actual.
+  const crmLoading = !!loadCrm && crmData?.days !== forecast.days && crmFailure?.days !== forecast.days;
+  const crmError = crmFailure?.days === forecast.days ? crmFailure.message : null;
+  const crmEvents = crmData?.events ?? null;
+  const crmRange = crmData?.range ?? null;
+
+  const actual = useMemo(() => {
+    if (!crmEvents || !crmRange) return null;
+    const steps: ActualStep[] = [];
+    for (const n of nodes) if (n.type === "step") steps.push({ id: n.id, crm: n.data.crm, slaHours: n.data.process?.slaHours ?? null });
+    const actualEdges: ActualEdge[] = edges.map((e) => ({ id: e.id, source: e.source, target: e.target, visual: e.data?.lineType === "visual" }));
+    const days = crmRange.to.getTime() - crmRange.from.getTime();
+    const previousRange = { from: new Date(crmRange.from.getTime() - days), to: new Date(crmRange.from.getTime() - 1) };
+    return {
+      current: computeActuals(steps, actualEdges, crmEvents, crmRange),
+      previous: computeActuals(steps, actualEdges, crmEvents, previousRange),
+    };
+  }, [crmEvents, crmRange, nodes, edges]);
+  const explorer = useMemo(() => {
+    if (!crmEvents || !crmRange) return null;
+    const fromMs = crmRange.from.getTime();
+    return crmExplorer(crmEvents.filter((e) => Date.parse(e.occurredAt) >= fromMs));
+  }, [crmEvents, crmRange]);
+
   const forecastView = useMemo<ForecastView>(() => {
     const run = (s: Scenario) => computeForecast(engineInput.steps, engineInput.engineEdges, forecast, s);
     const byScenario = { conservative: run("conservative"), expected: run("expected"), optimistic: run("optimistic") };
-    return { settings: forecast, result: byScenario[forecast.scenario], byScenario, ...makeFormatters(forecast.currency) };
-  }, [engineInput, forecast]);
+    // Sin CRM, la vista siempre es simulación (por ejemplo, en links compartidos). En prototipo, la capa de números va apagada.
+    const settings = loadCrm ? forecast : { ...forecast, view: "forecast" as const, showLayer: proto ? false : forecast.showLayer };
+    return {
+      settings,
+      result: byScenario[forecast.scenario],
+      byScenario,
+      actual: loadCrm ? actual?.current ?? null : null,
+      previous: loadCrm ? actual?.previous ?? null : null,
+      explorer: loadCrm ? explorer : null,
+      crm: { available: !!loadCrm, loading: crmLoading, error: crmError },
+      ...makeFormatters(forecast.currency),
+    };
+  }, [engineInput, forecast, actual, explorer, loadCrm, crmLoading, crmError, proto]);
 
   const addForecastWidget = () => {
     const existing = nodesRef.current.find((n) => n.type === "widget");
@@ -359,6 +465,74 @@ function Editor({ name: initialName, initialDoc, initialVersion, readOnly, backH
     setNodes((ns) => [...ns.map((n) => ({ ...n, selected: false })), { id: crypto.randomUUID(), type: "widget", position: { x: pos.x - 230, y: pos.y - 150 }, selected: true, data: { kind: "forecast" } }]);
     if (!forecast.showLayer) patchForecast({ showLayer: true });
   };
+
+  const addCrmStep = useCallback(
+    (entry: ExplorerEntry) => {
+      const m = entry.match;
+      const key =
+        m.type === "lead_created" ? "crm-lead" : m.type === "deal_won" ? "crm-won" : m.type === "deal_lost" ? "crm-lost" : m.type === "payment" ? "crm-paid" : m.type === "appointment" ? "act-booking" : "proc-stage";
+      const item = catalogItem(key);
+      const label = m.type === "lead_created" ? (m.source ? `Lead · ${m.source}` : "Lead nuevo") : m.type === "stage_changed" ? (m.stage ?? item.label) : item.label;
+      const pos = rf.screenToFlowPosition({ x: window.innerWidth / 2 + (Math.random() * 60 - 30), y: window.innerHeight / 2 + (Math.random() * 60 - 30) });
+      history.record();
+      setNodes((ns) => [
+        ...ns.map((n) => ({ ...n, selected: false })),
+        { id: crypto.randomUUID(), type: "step", position: { x: pos.x - 75, y: pos.y - 28 }, selected: true, data: { catalogKey: key, category: item.category, label, crm: m } },
+      ]);
+      showToast(`"${label}" agregado y conectado al CRM.`);
+    },
+    [history, rf, setNodes, showToast],
+  );
+
+  const copySelection = useCallback(() => {
+    const sel = nodesRef.current.filter((n) => n.selected);
+    if (!sel.length) return false;
+    const ids = new Set(sel.map((n) => n.id));
+    clipboard.current = { nodes: structuredClone(sel), edges: structuredClone(edgesRef.current.filter((e) => ids.has(e.source) && ids.has(e.target))) };
+    return true;
+  }, []);
+
+  const pasteClipboard = useCallback(
+    (at?: { x: number; y: number }) => {
+      const clip = clipboard.current;
+      if (!clip?.nodes.length) return;
+      const minX = Math.min(...clip.nodes.map((n) => n.position.x));
+      const minY = Math.min(...clip.nodes.map((n) => n.position.y));
+      const target = at ?? (lastPointer.current ? rf.screenToFlowPosition(lastPointer.current) : { x: minX + 40, y: minY + 40 });
+      const idMap = new Map(clip.nodes.map((n) => [n.id, crypto.randomUUID()]));
+      history.record();
+      const copies = clip.nodes.map((n) => ({ ...structuredClone(n), id: idMap.get(n.id)!, position: { x: n.position.x - minX + target.x, y: n.position.y - minY + target.y }, selected: true })) as AppNode[];
+      const edgeCopies = clip.edges.map((e) => ({ ...structuredClone(e), id: crypto.randomUUID(), source: idMap.get(e.source)!, target: idMap.get(e.target)!, selected: false }));
+      setNodes((ns) => [...ns.map((n) => ({ ...n, selected: false })), ...copies]);
+      setEdges((es) => [...es, ...edgeCopies]);
+    },
+    [history, rf, setEdges, setNodes],
+  );
+
+  const align = useCallback(
+    (kind: AlignKind) => {
+      const moves = alignNodes(nodesRef.current, kind);
+      if (!moves.size) return;
+      history.record();
+      setNodes((ns) => ns.map((n) => (moves.has(n.id) ? { ...n, position: moves.get(n.id)! } : n)));
+    },
+    [history, setNodes],
+  );
+
+  const reorder = useCallback(
+    (id: string, dir: "front" | "back") => {
+      history.record();
+      setNodes((ns) => {
+        const node = ns.find((n) => n.id === id);
+        if (!node) return ns;
+        const rest = ns.filter((n) => n.id !== id);
+        const z = node.type === "shape" ? (dir === "front" ? 0 : -1) : dir === "front" ? 1 : 0;
+        const moved = { ...node, zIndex: z } as AppNode;
+        return dir === "front" ? [...rest, moved] : [moved, ...rest];
+      });
+    },
+    [history, setNodes],
+  );
 
   const addText = () => {
     const pos = rf.screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
@@ -429,8 +603,8 @@ function Editor({ name: initialName, initialDoc, initialVersion, readOnly, backH
   useEffect(() => {
     if (readOnly) return;
     const onKey = (e: KeyboardEvent) => {
-      const t = e.target as HTMLElement;
-      if (t.closest("input, textarea, select, [contenteditable=true]")) return;
+      const t = e.target as HTMLElement | null;
+      if (t?.closest?.("input, textarea, select, [contenteditable=true]")) return;
       const mod = e.ctrlKey || e.metaKey;
       if (!mod) return;
       const k = e.key.toLowerCase();
@@ -443,25 +617,73 @@ function Editor({ name: initialName, initialDoc, initialVersion, readOnly, backH
       } else if (k === "d") {
         e.preventDefault();
         duplicateSelection();
+      } else if (k === "c") {
+        if (copySelection()) e.preventDefault();
+      } else if (k === "v") {
+        if (clipboard.current) {
+          e.preventDefault();
+          pasteClipboard();
+        }
+      } else if (k === "a") {
+        e.preventDefault();
+        setNodes((ns) => ns.map((n) => ({ ...n, selected: true })));
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [duplicateSelection, history, readOnly]);
+  }, [copySelection, duplicateSelection, history, pasteClipboard, readOnly, setNodes]);
 
-  const showToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 3500);
-  };
-
-  async function onExport() {
+  async function onExport(scale: 1 | 2 | 3) {
+    setShowExport(false);
     try {
-      await exportFlowPng(nodesRef.current, name);
+      await exportFlowPng(nodesRef.current, name, scale);
       showToast("PNG descargado.");
     } catch {
       showToast("No pudimos exportar el mapa. Revisa que tenga al menos un elemento.");
     }
   }
+
+  // ── Menú contextual ──
+  type MenuSpec = { x: number; y: number; kind: "node" | "edge" | "pane"; id?: string };
+  const openMenu = (menu: MenuSpec) => setMenu({ x: menu.x, y: menu.y, items: menuItems(menu) });
+  const menuItems = (menu: MenuSpec): MenuItem[] => {
+    const hasClip = !!clipboard.current;
+    if (menu.kind === "pane") {
+      return [
+        { label: "Pegar", onSelect: () => pasteClipboard(rf.screenToFlowPosition({ x: menu.x, y: menu.y })), disabled: !hasClip || readOnly, shortcut: "Ctrl+V" },
+        { label: "Seleccionar todo", onSelect: () => setNodes((ns) => ns.map((n) => ({ ...n, selected: true }))), shortcut: "Ctrl+A" },
+        "separator",
+        { label: "Agregar texto aquí", onSelect: () => { const p = rf.screenToFlowPosition({ x: menu.x, y: menu.y }); history.record(); setNodes((ns) => [...ns.map((n) => ({ ...n, selected: false })), { id: crypto.randomUUID(), type: "text", position: p, selected: true, data: { text: "Nuevo texto", size: "lg" } }]); }, disabled: readOnly },
+        { label: "Agregar forma aquí", onSelect: () => { const p = rf.screenToFlowPosition({ x: menu.x, y: menu.y }); history.record(); setNodes((ns) => [...ns.map((n) => ({ ...n, selected: false })), { id: crypto.randomUUID(), type: "shape", position: { x: p.x - 150, y: p.y - 100 }, width: 300, height: 200, zIndex: -1, selected: true, data: { shape: "rect", color: "#1d5bd6", label: "" } }]); }, disabled: readOnly },
+        "separator",
+        { label: "Ajustar a la vista", onSelect: () => rf.fitView({ padding: 0.2, duration: 300 }) },
+      ];
+    }
+    if (menu.kind === "edge") {
+      const e = edgesRef.current.find((x) => x.id === menu.id);
+      const setType = (lineType: "direct" | "indirect" | "visual") => onEdgeData(menu.id!, { lineType });
+      return [
+        { label: "Línea directa", onSelect: () => setType("direct"), disabled: readOnly || e?.data?.lineType === "direct" },
+        { label: "Línea indirecta", onSelect: () => setType("indirect"), disabled: readOnly || e?.data?.lineType === "indirect" },
+        { label: "Solo visual", onSelect: () => setType("visual"), disabled: readOnly || e?.data?.lineType === "visual" },
+        "separator",
+        ...(loadCrm && e && e.data?.lineType !== "visual" ? [{ label: "Ver personas", onSelect: () => setPeople({ kind: "edge", id: e.id, label: e.data?.label || "línea" }) } as MenuItem] : []),
+        { label: "Eliminar línea", onSelect: () => { history.record(); setEdges((es) => es.filter((x) => x.id !== menu.id)); }, danger: true, disabled: readOnly, shortcut: "Supr" },
+      ];
+    }
+    const node = nodesRef.current.find((x) => x.id === menu.id);
+    const selectThis = () => setNodes((ns) => ns.map((n) => ({ ...n, selected: n.id === menu.id || (n.selected && ns.filter((x) => x.selected).length > 1) })));
+    return [
+      { label: "Duplicar", onSelect: () => { selectThis(); setTimeout(duplicateSelection, 0); }, disabled: readOnly, shortcut: "Ctrl+D" },
+      { label: "Copiar", onSelect: () => { selectThis(); setTimeout(copySelection, 0); }, shortcut: "Ctrl+C" },
+      "separator",
+      ...(node?.type === "step" && loadCrm ? [{ label: "Ver personas", onSelect: () => setPeople({ kind: "step", id: node.id, label: node.data.label }) } as MenuItem] : []),
+      { label: "Traer al frente", onSelect: () => reorder(menu.id!, "front"), disabled: readOnly },
+      { label: "Enviar atrás", onSelect: () => reorder(menu.id!, "back"), disabled: readOnly },
+      "separator",
+      { label: "Eliminar", onSelect: () => { selectThis(); setTimeout(deleteSelection, 0); }, danger: true, disabled: readOnly, shortcut: "Supr" },
+    ];
+  };
 
   async function commitName() {
     const clean = name.trim();
@@ -481,13 +703,15 @@ function Editor({ name: initialName, initialDoc, initialVersion, readOnly, backH
     history.record();
     version.current = newVersion;
     const restoredForecast = newDoc.forecast ?? forecast;
-    const restoredStr = JSON.stringify(flowToDoc(f.nodes, f.edges, { notes: newDoc.notes ?? "", checklist: newDoc.checklist ?? [], forecast: restoredForecast }));
+    const restoredMode = newDoc.mode ?? "complete";
+    const restoredStr = JSON.stringify(flowToDoc(f.nodes, f.edges, { notes: newDoc.notes ?? "", checklist: newDoc.checklist ?? [], forecast: restoredForecast, mode: modeExtra(restoredMode) }));
     lastSaved.current = restoredStr;
     setNodes(f.nodes);
     setEdges(f.edges);
     setNotes(newDoc.notes ?? "");
     setChecklist(newDoc.checklist ?? []);
     setForecast(restoredForecast);
+    setDocMode(restoredMode);
     setStatus("saved");
     setShowVersions(false);
     showToast("Versión restaurada.");
@@ -543,6 +767,37 @@ function Editor({ name: initialName, initialDoc, initialVersion, readOnly, backH
             </>
           )}
           <span className="mx-1 h-5 w-px bg-line" />
+          {readOnly ? (
+            proto && <span className="rounded bg-canvas px-2 py-1 text-xs font-medium text-muted" title="Solo el flujo, sin simulación ni datos del CRM">Prototipo</span>
+          ) : proto && !showModePicker ? (
+            <button
+              type="button"
+              onClick={() => setShowModePicker(true)}
+              className="rounded bg-canvas px-2 py-1 text-xs font-medium text-muted hover:text-ink"
+              title="Solo el flujo, sin simulación ni datos del CRM. Clic para cambiar el modo."
+              aria-label="Modo Prototipo. Cambiar modo del mapa"
+            >
+              Prototipo
+            </button>
+          ) : (
+            <>
+              <label htmlFor="mode-select" className="sr-only">Modo del mapa</label>
+              <select
+                id="mode-select"
+                value={docMode}
+                autoFocus={proto}
+                onBlur={() => proto && setShowModePicker(false)}
+                onChange={(e) => changeMode(e.target.value as CanvasMode)}
+                className="rounded border border-line bg-surface px-1.5 py-1 text-xs text-ink"
+                title="Prototipo: solo el flujo. Completo: con simulación y datos del CRM."
+              >
+                {(Object.keys(CANVAS_MODE_LABELS) as CanvasMode[]).map((m) => (
+                  <option key={m} value={m}>{CANVAS_MODE_LABELS[m]}</option>
+                ))}
+              </select>
+            </>
+          )}
+          {!proto && (
           <button
             type="button"
             onClick={() => patchForecast({ showLayer: !forecast.showLayer })}
@@ -552,7 +807,24 @@ function Editor({ name: initialName, initialDoc, initialVersion, readOnly, backH
           >
             <Calculator size={15} aria-hidden /> Simulación
           </button>
-          {forecast.showLayer && (
+          )}
+          {!proto && forecast.showLayer && loadCrm && (
+            <>
+              <label htmlFor="view-select" className="sr-only">Qué números mostrar</label>
+              <select
+                id="view-select"
+                value={forecast.view}
+                onChange={(e) => patchForecast({ view: e.target.value as ViewMode })}
+                className="rounded border border-line bg-surface px-1.5 py-1 text-xs text-ink"
+                title="Simulación, datos reales del CRM o ambos"
+              >
+                {(Object.keys(VIEW_LABELS) as ViewMode[]).map((v) => (
+                  <option key={v} value={v}>{VIEW_LABELS[v]}</option>
+                ))}
+              </select>
+            </>
+          )}
+          {!proto && forecast.showLayer && (
             <>
               <label htmlFor="scenario-select" className="sr-only">Escenario</label>
               <select
@@ -569,9 +841,29 @@ function Editor({ name: initialName, initialDoc, initialVersion, readOnly, backH
               {!readOnly && <ToolButton label="Agregar resumen de la simulación" onClick={addForecastWidget}><LayoutDashboard size={17} /></ToolButton>}
             </>
           )}
+          <ToolButton label={forecast.animateFlow ? "Detener la animación de flujo" : "Animar el flujo entre pasos"} onClick={() => patchForecast({ animateFlow: !forecast.animateFlow || undefined })}>
+            <Waves size={17} className={forecast.animateFlow ? "text-accent" : undefined} />
+          </ToolButton>
           <span className="mx-1 h-5 w-px bg-line" />
-          <ToolButton label="Descargar PNG" onClick={onExport}><ImageDown size={17} /></ToolButton>
+          <div className="relative">
+            <ToolButton label="Descargar" onClick={() => setShowExport((v) => !v)}><Download size={17} /></ToolButton>
+            {showExport && (
+              <div role="menu" className="absolute right-0 top-full z-40 mt-1 w-52 rounded-md border border-line bg-surface py-1 text-sm shadow-lg" onMouseLeave={() => setShowExport(false)}>
+                <p className="px-3 pb-1 pt-1 text-[11px] font-semibold uppercase text-muted">Imagen</p>
+                {([1, 2, 3] as const).map((sc) => (
+                  <button key={sc} type="button" role="menuitem" onClick={() => onExport(sc)} className="block w-full px-3 py-1.5 text-left hover:bg-canvas">PNG ×{sc}{sc === 2 ? " (recomendado)" : sc === 3 ? " (impresión)" : ""}</button>
+                ))}
+                <p className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase text-muted">Datos</p>
+                <button type="button" role="menuitem" onClick={() => { setShowExport(false); stepsCsv(nodesRef.current, forecastView, name); }} className="block w-full px-3 py-1.5 text-left hover:bg-canvas">CSV de pasos</button>
+                <button type="button" role="menuitem" onClick={() => { setShowExport(false); edgesCsv(nodesRef.current, edgesRef.current, forecastView, name); }} className="block w-full px-3 py-1.5 text-left hover:bg-canvas">CSV de líneas</button>
+              </div>
+            )}
+          </div>
           {!shared && <ToolButton label="Versiones" onClick={() => setShowVersions(true)}><History size={17} /></ToolButton>}
+          <ToolButton label="Ayuda y atajos" onClick={() => setShowHelp(true)}><HelpCircle size={17} /></ToolButton>
+          <ToolButton label={showInspector ? "Ocultar panel de detalles" : "Mostrar panel de detalles"} onClick={() => setShowInspector((v) => !v)}>
+            {showInspector ? <PanelRightClose size={18} /> : <PanelRightOpen size={18} />}
+          </ToolButton>
           {!shared && !readOnly && actions.share && (
             <button type="button" onClick={() => setShowShare(true)} className="btn-primary ml-1 py-1.5 text-xs">
               <Share2 size={14} aria-hidden /> Compartir
@@ -586,16 +878,11 @@ function Editor({ name: initialName, initialDoc, initialVersion, readOnly, backH
           <aside className="w-64 shrink-0 border-r border-line bg-surface">
             <LibraryPanel
               onAdd={(key) => addStep(key)}
+              onAddCrmStep={addCrmStep}
               customIcons={actions.icons ? customIcons : null}
               onAddCustomIcon={addCustomIconStep}
               upload={actions.uploadImage}
-              onIconUploaded={async (url, file) => {
-                const r = await actions.icons?.add(file.name.replace(/\.[^.]+$/, "").slice(0, 80) || "Ícono", url);
-                if (r?.ok) {
-                  setCustomIcons((list) => [r.icon, ...list]);
-                  showToast("Ícono guardado en el workspace.");
-                } else showToast("No pudimos guardar el ícono. Intenta de nuevo.");
-              }}
+              onIconUploaded={saveIconToLibrary}
               onRemoveIcon={async (id) => {
                 const r = await actions.icons?.remove(id);
                 if (r?.ok) setCustomIcons((list) => list.filter((i) => i.id !== id));
@@ -605,9 +892,9 @@ function Editor({ name: initialName, initialDoc, initialVersion, readOnly, backH
           </aside>
         )}
 
-        <div className="relative min-w-0 flex-1" onDragOver={(e) => { if (e.dataTransfer.types.includes(DRAG_MIME)) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; } }} onDrop={onDrop}>
+        <div className="relative min-w-0 flex-1" onMouseMove={(e) => { lastPointer.current = { x: e.clientX, y: e.clientY }; }} onDragOver={(e) => { if (e.dataTransfer.types.includes(DRAG_MIME)) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; } }} onDrop={onDrop}>
           <ReactFlow<AppNode, FlowEdgeT>
-            nodes={nodes}
+            nodes={visibleNodes}
             edges={edges}
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
@@ -615,6 +902,9 @@ function Editor({ name: initialName, initialDoc, initialVersion, readOnly, backH
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
             onNodeDragStart={() => history.record()}
+            onNodeContextMenu={(e, node) => { e.preventDefault(); openMenu({ x: e.clientX, y: e.clientY, kind: "node", id: node.id }); }}
+            onEdgeContextMenu={(e, edge) => { e.preventDefault(); openMenu({ x: e.clientX, y: e.clientY, kind: "edge", id: edge.id }); }}
+            onPaneContextMenu={(e) => { e.preventDefault(); openMenu({ x: e.clientX, y: e.clientY, kind: "pane" }); }}
             connectionMode={ConnectionMode.Loose}
             defaultEdgeOptions={{ type: "flow", markerEnd: EDGE_MARKER }}
             nodesDraggable={!readOnly}
@@ -641,6 +931,26 @@ function Editor({ name: initialName, initialDoc, initialVersion, readOnly, backH
               maskColor="rgba(100,116,139,0.12)"
             />
           </ReactFlow>
+          <ZoomBadge />
+          {!readOnly && selectedNodes.length >= 2 && (
+            <div className="absolute left-1/2 top-3 flex -translate-x-1/2 items-center gap-0.5 rounded-md border border-line bg-surface p-1 shadow-md" role="toolbar" aria-label="Alinear seleccionados">
+              {(
+                [
+                  ["left", AlignStartVertical], ["centerX", AlignCenterVertical], ["right", AlignEndVertical],
+                  ["top", AlignStartHorizontal], ["centerY", AlignCenterHorizontal], ["bottom", AlignEndHorizontal],
+                  ["distributeX", AlignHorizontalSpaceAround], ["distributeY", AlignVerticalSpaceAround],
+                ] as const
+              ).map(([kind, Icon], i) => (
+                <span key={kind} className="flex items-center">
+                  {(i === 3 || i === 6) && <span className="mx-0.5 h-4 w-px bg-line" />}
+                  <ToolButton label={ALIGN_LABELS[kind]} onClick={() => align(kind)} disabled={kind.startsWith("distribute") && selectedNodes.length < 3}>
+                    <Icon size={16} />
+                  </ToolButton>
+                </span>
+              ))}
+              <span className="ml-1 pr-1 text-[11px] text-muted">{selectedNodes.length} seleccionados</span>
+            </div>
+          )}
           {nodes.length === 0 && !readOnly && (
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
               <div className="rounded-lg border border-dashed border-line bg-surface/80 px-6 py-5 text-center">
@@ -656,6 +966,7 @@ function Editor({ name: initialName, initialDoc, initialVersion, readOnly, backH
           )}
         </div>
 
+        {showInspector && (
         <aside className="w-80 shrink-0 overflow-y-auto border-l border-line bg-surface">
           <Inspector
             node={selectedNode}
@@ -671,6 +982,11 @@ function Editor({ name: initialName, initialDoc, initialVersion, readOnly, backH
             upload={actions.uploadImage}
             customIcons={customIcons}
             onForecastSettings={patchForecast}
+            onShowPeople={loadCrm ? setPeople : undefined}
+            prototype={proto}
+            mode={docMode}
+            onMode={shared ? undefined : changeMode}
+            onIconUploaded={actions.icons ? saveIconToLibrary : undefined}
             details={
               actions.details && !shared
                 ? { tags, isTemplate, onTags: onTagsChange, onTemplate: onTemplateChange }
@@ -683,10 +999,18 @@ function Editor({ name: initialName, initialDoc, initialVersion, readOnly, backH
             </p>
           )}
         </aside>
+        )}
       </div>
       </ForecastContext>
 
       {showShare && actions.share && <ShareDialog actions={actions.share} onClose={() => setShowShare(false)} />}
+      {menu && <ContextMenu x={menu.x} y={menu.y} items={menu.items} onClose={() => setMenu(null)} />}
+      {people && (
+        <ForecastContext value={forecastView}>
+          <PeopleDrawer target={people} onClose={() => setPeople(null)} />
+        </ForecastContext>
+      )}
+      {showHelp && <HelpDialog onClose={() => setShowHelp(false)} crm={!!loadCrm} prototype={proto} />}
 
       {showVersions && (
         <VersionsDrawer
@@ -699,6 +1023,59 @@ function Editor({ name: initialName, initialDoc, initialVersion, readOnly, backH
           onRestored={onRestored}
         />
       )}
+    </div>
+  );
+}
+
+function ZoomBadge() {
+  const { zoom } = useViewport();
+  return (
+    <div className="pointer-events-none absolute bottom-3 left-14 rounded border border-line bg-surface px-1.5 py-0.5 text-[11px] text-muted" aria-live="off">
+      {Math.round(zoom * 100)} %
+    </div>
+  );
+}
+
+function HelpDialog({ onClose, crm, prototype }: { onClose: () => void; crm: boolean; prototype: boolean }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  const rows: [string, string][] = [
+    ["Conectar pasos", "Arrastra desde los puntos del borde de un paso hasta otro."],
+    ["Mover el lienzo", "Arrastra el fondo o usa la rueda del mouse para acercar y alejar."],
+    ["Seleccionar varios", "Shift + arrastrar sobre el fondo, o Ctrl + clic en cada uno. Ctrl + A selecciona todo."],
+    ["Alinear", "Con dos o más seleccionados aparece la barra para alinear y distribuir."],
+    ["Copiar y pegar", "Ctrl + C y Ctrl + V. Se pega donde está el cursor."],
+    ["Duplicar", "Ctrl + D."],
+    ["Deshacer y rehacer", "Ctrl + Z y Ctrl + Shift + Z."],
+    ["Eliminar", "Supr o Retroceso."],
+    ["Menú contextual", "Clic derecho sobre un paso, una línea o el fondo."],
+    ["Paneles", "Los botones de la barra superior ocultan o muestran la biblioteca de elementos (izquierda) y el panel de detalles (derecha)."],
+    ["Modo del mapa", "Prototipo muestra solo el flujo; Completo agrega simulación y datos del CRM. Se cambia en la barra superior."],
+    ...(prototype ? [] : [["Simulación", "Activa la capa en la barra superior. Los pasos de entrada llevan volumen; las líneas, tasa de conversión."] as [string, string]]),
+    ...(crm ? [["Datos reales", "Conecta cada paso a un evento del CRM en el panel derecho y cambia la vista a Real o Comparar. Cada número abre la lista de personas."] as [string, string]] : []),
+    ["Compartir", "Crea un link de solo lectura con contraseña y vencimiento para clientes."],
+  ];
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div role="dialog" aria-modal="true" aria-labelledby="help-title" className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-lg bg-surface p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h2 id="help-title" className="font-semibold">Cómo usar el editor</h2>
+          <button type="button" onClick={onClose} className="rounded px-2 py-1 text-sm text-muted hover:bg-canvas">Cerrar</button>
+        </div>
+        <dl className="mt-3 space-y-2 text-sm">
+          {rows.map(([k, v]) => (
+            <div key={k} className="grid grid-cols-[140px_1fr] gap-2">
+              <dt className="font-medium">{k}</dt>
+              <dd className="text-muted">{v}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
     </div>
   );
 }

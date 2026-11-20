@@ -79,7 +79,9 @@ export function edgeRate(f: EdgeForecast | undefined, scenario: Scenario, factor
   let pct = f.rate;
   if (scenario !== "expected") {
     const override = f[scenario];
-    pct = typeof override === "number" && Number.isFinite(override) ? override : f.rate * factors[scenario].rate;
+    if (typeof override === "number" && Number.isFinite(override)) pct = override;
+    // Una tasa de 100 % es estructural (todos pasan): los factores de escenario no la cambian.
+    else if (f.rate < 100) pct = f.rate * factors[scenario].rate;
   }
   return Math.min(100, Math.max(0, pct)) / 100;
 }

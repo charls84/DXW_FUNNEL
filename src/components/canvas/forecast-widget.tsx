@@ -29,7 +29,7 @@ export const ForecastWidgetNode = memo(function ForecastWidgetNode({ selected }:
     { label: "Gasto total", value: money(t.cost), tone: "bad" },
     { label: "Utilidad", value: money(t.profit), tone: t.profit >= 0 ? "good" : "bad" },
     { label: "ROI", value: percent(t.roi), tone: (t.roi ?? 0) >= 0 ? "good" : "bad" },
-    { label: "ROAS", value: t.roas === null ? "—" : `${t.roas.toFixed(1)}×` },
+    { label: "ROAS", value: t.roas === null ? "—" : `${t.roas.toLocaleString("es-CO", { maximumFractionDigits: 1 })}×` },
     { label: "Costo por venta", value: t.costPerCustomer === null ? "—" : money(t.costPerCustomer) },
   ];
 
@@ -42,7 +42,7 @@ export const ForecastWidgetNode = memo(function ForecastWidgetNode({ selected }:
         <div>
           <p className="text-sm font-semibold">Simulación</p>
           <p className="text-[11px] text-muted">
-            Próximos {settings.days} días · Escenario {SCENARIO_LABELS[settings.scenario].toLowerCase()} · Cifras estimadas
+            {settings.days} días · Escenario {SCENARIO_LABELS[settings.scenario].toLowerCase()} · Cifras estimadas
           </p>
         </div>
       </div>
@@ -80,8 +80,29 @@ export const ForecastWidgetNode = memo(function ForecastWidgetNode({ selected }:
               </tr>
             );
           })}
+          {fc.actual && settings.view !== "forecast" && (
+            <tr className="border-t-2 border-line font-semibold text-success">
+              <td className="py-1">Real (CRM)</td>
+              <td className="py-1 text-right">{count(fc.actual.totals.sales)}</td>
+              <td className="py-1 text-right">{money(fc.actual.totals.revenue)}</td>
+              <td className="py-1 text-right text-muted" title="El CRM no informa gastos: compara ventas e ingresos.">—</td>
+              <td className="py-1 text-right text-muted">—</td>
+            </tr>
+          )}
         </tbody>
       </table>
+
+      {fc.crm.available && settings.view !== "forecast" && (
+        <p className="mt-2 text-[11px] text-muted">
+          {fc.crm.loading
+            ? "Cargando datos del CRM…"
+            : fc.crm.error
+              ? fc.crm.error
+              : fc.actual && fc.actual.totals.contacts > 0
+                ? `Real: ${count(fc.actual.totals.contacts)} contactos con actividad en los últimos ${settings.days} días · ${fc.actual.totals.mappedSteps} pasos conectados al CRM.`
+                : `Sin eventos del CRM en los últimos ${settings.days} días.`}
+        </p>
+      )}
 
       {warnings.length > 0 && (
         <ul className="mt-3 space-y-0.5 rounded-md bg-canvas px-2 py-1.5 text-[11px] text-muted">

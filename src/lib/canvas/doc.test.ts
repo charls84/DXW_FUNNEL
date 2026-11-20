@@ -104,3 +104,23 @@ describe("imágenes", () => {
     expect(step.data.thumbnailUrl).toBe("https://cdn.test/t.png");
   });
 });
+
+describe("modo del mapa y tamaño de ícono", () => {
+  it("conserva el modo prototipo y el tamaño del ícono, y descarta valores inválidos", () => {
+    const doc = sanitizeDoc({
+      schema: 1,
+      mode: "prototype",
+      nodes: [
+        { id: "a", type: "step", position: { x: 0, y: 0 }, data: { catalogKey: "generic", category: "page", label: "A", iconSize: "xl" } },
+        { id: "b", type: "step", position: { x: 0, y: 0 }, data: { catalogKey: "generic", category: "page", label: "B", iconSize: "huge" } },
+        { id: "c", type: "step", position: { x: 0, y: 0 }, data: { catalogKey: "generic", category: "page", label: "C", iconSize: "md" } },
+      ],
+      edges: [],
+    });
+    expect(doc.mode).toBe("prototype");
+    const sizes = doc.nodes.map((n) => (n.type === "step" ? n.data.iconSize : null));
+    expect(sizes).toEqual(["xl", undefined, undefined]);
+    expect(sanitizeDoc({ schema: 1, mode: "complete", nodes: [], edges: [] }).mode).toBeUndefined();
+    expect(sanitizeDoc({ schema: 1, mode: "otro", nodes: [], edges: [] }).mode).toBeUndefined();
+  });
+});

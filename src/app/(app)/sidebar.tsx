@@ -42,6 +42,7 @@ export function Sidebar({ member, workspaces }: Props) {
             <p className="px-3 pb-1 text-xs font-medium text-muted">{active.name}</p>
             <div className="space-y-1">
               {navItem(`/workspaces/${active.id}`, "Mapas", true)}
+              {navItem(`/workspaces/${active.id}/crm`, "CRM")}
               {navItem(`/workspaces/${active.id}/settings`, "Configuración")}
             </div>
           </div>

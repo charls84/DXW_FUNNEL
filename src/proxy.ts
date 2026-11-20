@@ -3,7 +3,8 @@ import { createServerClient } from "@supabase/ssr";
 import { getSupabaseEnv } from "@/lib/env";
 
 // /s/: links de solo lectura para clientes (la validación ocurre en Postgres con get_shared_canvas).
-const PUBLIC_PATHS = ["/login", "/auth/callback", "/s/", ...(process.env.NODE_ENV === "production" ? [] : ["/dev/"])];
+// /api/crm/ingest/: webhook del CRM (autenticado por firma HMAC, no por sesión).
+const PUBLIC_PATHS = ["/login", "/auth/callback", "/s/", "/api/crm/ingest/", ...(process.env.NODE_ENV === "production" ? [] : ["/dev/"])];
 
 /**
  * Refresca la sesión de Supabase y redirige a /login si no hay usuario.

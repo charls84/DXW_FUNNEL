@@ -78,6 +78,19 @@ body {
 .react-flow__edge-path {
   stroke-linecap: round;
 }
+@keyframes dxw-dash {
+  to {
+    stroke-dashoffset: -20;
+  }
+}
+.dxw-flow-anim {
+  animation: dxw-dash 0.8s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .dxw-flow-anim {
+    animation: none;
+  }
+}
 
 @layer components {
   .btn-primary,

@@ -20,6 +20,7 @@ import {
   setCanvasTags,
   setCanvasTemplate,
 } from "@/app/canvas-actions";
+import { listCrmEvents } from "@/app/crm-actions";
 import { CanvasPageClient } from "@/components/canvas/canvas-page-client";
 
 export const metadata: Metadata = { title: "Mapa" };
@@ -60,6 +61,7 @@ export default async function CanvasPage({ params }: PageProps<"/canvas/[canvasI
         listIcons: listCustomIcons.bind(null, ws),
         addIcon: addCustomIcon.bind(null, ws),
         deleteIcon: deleteCustomIcon.bind(null, ws),
+        loadCrmEvents: listCrmEvents.bind(null, ws),
       }}
     />
   );

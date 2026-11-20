@@ -28,6 +28,8 @@ describe("utilidades", () => {
     expect(edgeRate({ rate: 40 }, "conservative")).toBeCloseTo(0.32);
     expect(edgeRate({ rate: 40, optimistic: 55 }, "optimistic")).toBeCloseTo(0.55);
     expect(edgeRate({ rate: 90 }, "optimistic")).toBe(1);
+    expect(edgeRate({ rate: 100 }, "conservative")).toBe(1); // 100 % es estructural
+    expect(edgeRate({ rate: 100, conservative: 70 }, "conservative")).toBeCloseTo(0.7); // salvo valor propio
     expect(edgeRate({}, "expected")).toBeNull();
   });
 });

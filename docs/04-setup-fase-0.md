@@ -12,7 +12,9 @@ Lo que hace falta configurar una sola vez para que DXW Funnel funcione con login
    1. `20261120000000_fase0_base.sql` (equipo y workspaces)
    2. `20261120010000_fase1_canvases.sql` (mapas y versiones)
    3. `20261120020000_fase1_compartir_assets.sql` (links compartidos, plantillas DXW, íconos e imágenes)
-3. Revisa que en **Table Editor** aparezcan `app_settings`, `organizations`, `members`, `workspaces`, `canvases`, `canvas_revisions`, `custom_icons` y `share_links`, cada una con RLS activo.
+   4. `20261120030000_fase3_crm.sql` (eventos del CRM y webhook firmado; ver [05-integracion-crm.md](05-integracion-crm.md))
+   5. `20261120040000_papelera.sql` (papelera de 30 días para mapas; `purge_old_canvases()` para programar la limpieza)
+3. Revisa que en **Table Editor** aparezcan `app_settings`, `organizations`, `members`, `workspaces`, `canvases`, `canvas_revisions`, `custom_icons`, `share_links`, `crm_connections` y `crm_events`, cada una con RLS activo.
 4. Revisa que en **Storage** exista el bucket `canvas-assets` (público, 5 MB máximo por imagen).
 
 > **Sobre el bucket público:** las imágenes de los mapas (íconos, capturas, imágenes) deben verse también en los links para clientes, por eso el bucket es público. Los nombres de archivo son aleatorios e imposibles de adivinar, pero cualquiera con la URL exacta de una imagen puede verla. No subas imágenes con datos sensibles.
