@@ -32,6 +32,7 @@ type Props = {
   readOnly: boolean;
   tags: string[];
   isTemplate: boolean;
+  currency: string;
   supabase: { url: string; key: string };
   server: ServerActions;
 };
@@ -39,7 +40,7 @@ type Props = {
 const EXT: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif" };
 
 /** Une las Server Actions con la subida directa de imágenes a Supabase Storage (bucket canvas-assets). */
-export function CanvasPageClient({ workspaceId, name, doc, version, readOnly, tags, isTemplate, supabase, server }: Props) {
+export function CanvasPageClient({ workspaceId, name, doc, version, readOnly, tags, isTemplate, currency, supabase, server }: Props) {
   const actions = useMemo<EditorActions>(() => {
     const client = createClient(supabase.url, supabase.key);
 
@@ -73,6 +74,7 @@ export function CanvasPageClient({ workspaceId, name, doc, version, readOnly, ta
       backHref={`/workspaces/${workspaceId}`}
       actions={actions}
       meta={{ tags, isTemplate }}
+      currency={currency}
     />
   );
 }

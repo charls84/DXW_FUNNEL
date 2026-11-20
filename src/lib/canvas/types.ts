@@ -1,3 +1,5 @@
+import type { EdgeForecast, ForecastSettings, StepForecast } from "@/lib/forecast/types";
+
 /**
  * Documento de un mapa (canvas_revisions.doc / canvases.doc).
  * Los nodos y líneas usan la forma de React Flow para guardarse y cargarse sin conversión.
@@ -19,7 +21,10 @@ export type StepData = {
   notes?: string;
   checklist?: ChecklistItem[];
   process?: ProcessInfo;       // mapas de proceso: responsable, SLA y herramienta
+  forecast?: StepForecast;     // simulación: volumen de entrada, ingreso y meta por persona
 };
+
+export type WidgetData = { kind: "forecast" };
 
 export type TextData = { text: string; size: "sm" | "md" | "lg" | "xl" };
 
@@ -29,13 +34,14 @@ export type ImageData = { url: string; alt?: string };
 
 export type LineType = "direct" | "indirect" | "visual";
 
-export type EdgeData = { lineType: LineType; label?: string };
+export type EdgeData = { lineType: LineType; label?: string; forecast?: EdgeForecast };
 
 export type DocNode =
   | { id: string; type: "step"; position: XY; data: StepData }
   | { id: string; type: "text"; position: XY; data: TextData }
   | { id: string; type: "shape"; position: XY; data: ShapeData; width?: number; height?: number }
-  | { id: string; type: "image"; position: XY; data: ImageData; width?: number; height?: number };
+  | { id: string; type: "image"; position: XY; data: ImageData; width?: number; height?: number }
+  | { id: string; type: "widget"; position: XY; data: WidgetData };
 
 export type DocEdge = {
   id: string;
@@ -56,6 +62,7 @@ export type CanvasDoc = {
   notes?: string;
   checklist?: ChecklistItem[];
   viewport?: { x: number; y: number; zoom: number };
+  forecast?: ForecastSettings;
 };
 
 export const EMPTY_DOC: CanvasDoc = { schema: 1, nodes: [], edges: [] };

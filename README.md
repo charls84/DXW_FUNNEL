@@ -7,6 +7,13 @@ Herramienta interna de DOUX.WORK para mapear y simular procesos y embudos, los p
   - Fase 0 lista: login del equipo, workspaces, roles.
   - Fase 1 lista: editor de mapas con plantillas (base y propias de DXW), autoguardado, deshacer/rehacer, versiones, PNG, imágenes, íconos propios, capturas de páginas, tags y links de solo lectura con contraseña.
   - Fuera de la Fase 1: la captura **automática** de páginas desde su URL. Requiere elegir un servicio externo de screenshots o un worker propio.
+  - Fase 2 lista: simulación (forecast).
+    - Pasos de entrada con período y dos de tres datos (personas, gasto, costo por persona).
+    - Tasa de conversión por línea, ingreso y valor de meta por persona.
+    - Gastos fijos y horizonte en días.
+    - Escenarios conservador, esperado y optimista (factores del mapa o valores por línea).
+    - Números sobre el mapa y un resumen con ingresos, gasto, utilidad, ROI, ROAS y costo por venta.
+    - Motor en `src/lib/forecast/engine.ts`, con tests.
 - **Probar sin base de datos:** `npm run dev` y abrir http://localhost:3000/dev/canvas (editor) y http://localhost:3000/dev/shared (vista del cliente)
 
 ## Documentación

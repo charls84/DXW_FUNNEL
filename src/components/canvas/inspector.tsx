@@ -8,6 +8,8 @@ import type { CustomIcon } from "./canvas-editor";
 import { ChecklistEditor } from "./checklist-editor";
 import { TagsEditor } from "./tags-editor";
 import { UploadButton, type UploadImage } from "./upload-button";
+import { CanvasForecastSection, EdgeForecastSection, StepForecastSection } from "./inspector-forecast";
+import type { ForecastSettings } from "@/lib/forecast/types";
 
 type Props = {
   node: AppNode | null;
@@ -23,6 +25,7 @@ type Props = {
   upload?: UploadImage;
   customIcons?: CustomIcon[];
   details?: { tags: string[]; isTemplate: boolean; onTags: (t: string[]) => void; onTemplate: (v: boolean) => void } | null;
+  onForecastSettings?: (patch: Partial<ForecastSettings>) => void;
 };
 
 const SHAPE_COLORS = ["#1d5bd6", "#0f766e", "#c2410c", "#7c3aed", "#be185d", "#334155"];
@@ -74,6 +77,11 @@ export function Inspector(p: Props) {
             />
           </div>
         </Section>
+        {data.lineType !== "visual" && (
+          <Section title="Simulación">
+            <EdgeForecastSection edgeId={p.edge.id} value={data.forecast} onChange={(forecast) => p.onEdgeData(p.edge!.id, { forecast })} readOnly={ro} />
+          </Section>
+        )}
         {!ro && <DeleteButton label="Eliminar línea" onClick={p.onDelete} />}
       </div>
     );
@@ -162,6 +170,10 @@ export function Inspector(p: Props) {
             )}
           </Section>
         )}
+
+        <Section title="Simulación">
+          <StepForecastSection nodeId={n.id} value={d.forecast} onChange={(forecast) => set({ forecast })} readOnly={ro} />
+        </Section>
 
         {showProcess && (
           <Section title="Responsable y tiempos">
@@ -296,6 +308,24 @@ export function Inspector(p: Props) {
     );
   }
 
+  if (p.node?.type === "widget") {
+    return (
+      <div>
+        <Section title="Resumen de la simulación">
+          <p className="text-xs text-muted">
+            Muestra los totales del escenario elegido y compara los tres escenarios. Sale en el PNG y en los links compartidos.
+          </p>
+        </Section>
+        {p.onForecastSettings && (
+          <Section title="Simulación del mapa">
+            <CanvasForecastSection onChange={p.onForecastSettings} readOnly={ro} />
+          </Section>
+        )}
+        {!ro && <DeleteButton label="Quitar resumen" onClick={p.onDelete} />}
+      </div>
+    );
+  }
+
   if (ro && !p.canvasNotes && p.canvasChecklist.length === 0) {
     return (
       <div className="p-4 text-sm text-muted">
@@ -306,6 +336,11 @@ export function Inspector(p: Props) {
 
   return (
     <div>
+      {p.onForecastSettings && (
+        <Section title="Simulación del mapa">
+          <CanvasForecastSection onChange={p.onForecastSettings} readOnly={ro} />
+        </Section>
+      )}
       {p.details && (
         <Section title="Detalles del mapa">
           <div>

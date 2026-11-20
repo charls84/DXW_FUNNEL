@@ -19,7 +19,10 @@ import {
   type OnEdgesChange,
   type OnNodesChange,
 } from "@xyflow/react";
-import { ArrowLeft, History, ImageDown, ImagePlus, PanelLeftClose, PanelLeftOpen, Redo2, Share2, Square, Type, Undo2 } from "lucide-react";
+import { ArrowLeft, Calculator, History, ImageDown, ImagePlus, LayoutDashboard, PanelLeftClose, PanelLeftOpen, Redo2, Share2, Square, Type, Undo2 } from "lucide-react";
+import { computeForecast, type EngineEdge, type EngineStep } from "@/lib/forecast/engine";
+import { DEFAULT_FORECAST, SCENARIO_LABELS, type ForecastSettings, type Scenario } from "@/lib/forecast/types";
+import { ForecastContext, makeFormatters, type ForecastView } from "./forecast-context";
 import { CATEGORY_META, getCatalogItem } from "@/lib/canvas/catalog";
 import type { CanvasDoc, ChecklistItem, EdgeData, ImageData, ShapeData, StepData, TextData } from "@/lib/canvas/types";
 import { EDGE_MARKER, docToFlow, flowToDoc, type AppNode, type FlowEdgeT } from "./flow-types";
@@ -70,6 +73,8 @@ type Props = {
   /** "shared": vista pública de solo lectura (sin navegación, versiones ni compartir). */
   mode?: "edit" | "shared";
   meta?: { tags: string[]; isTemplate: boolean };
+  /** Moneda del workspace: se usa si el mapa todavía no tiene simulación configurada. */
+  currency?: string;
 };
 
 const NOOP_ACTIONS: EditorActions = {
@@ -113,8 +118,11 @@ export function CanvasEditor(props: Props) {
   );
 }
 
-function Editor({ name: initialName, initialDoc, initialVersion, readOnly, backHref, actions, mode = "edit", meta }: Props) {
+function Editor({ name: initialName, initialDoc, initialVersion, readOnly, backHref, actions, mode = "edit", meta, currency }: Props) {
   const shared = mode === "shared";
+  const [initialForecast] = useState<ForecastSettings>(() => initialDoc.forecast ?? { ...DEFAULT_FORECAST, currency: currency ?? DEFAULT_FORECAST.currency });
+  const [forecast, setForecast] = useState<ForecastSettings>(initialForecast);
+  const patchForecast = useCallback((patch: Partial<ForecastSettings>) => setForecast((f) => ({ ...f, ...patch })), []);
   const [showShare, setShowShare] = useState(false);
   const [tags, setTags] = useState<string[]>(meta?.tags ?? []);
   const [isTemplate, setIsTemplate] = useState(meta?.isTemplate ?? false);
@@ -162,9 +170,9 @@ function Editor({ name: initialName, initialDoc, initialVersion, readOnly, backH
   const history = useHistory(getCurrent, applySnapshot);
 
   // ── Autoguardado ──
-  const doc = useMemo(() => flowToDoc(nodes, edges, { notes, checklist }), [nodes, edges, notes, checklist]);
+  const doc = useMemo(() => flowToDoc(nodes, edges, { notes, checklist, forecast }), [nodes, edges, notes, checklist, forecast]);
   const docString = useMemo(() => JSON.stringify(doc), [doc]);
-  const lastSaved = useRef(JSON.stringify(flowToDoc(initial.nodes, initial.edges, { notes: initialDoc.notes ?? "", checklist: initialDoc.checklist ?? [] })));
+  const lastSaved = useRef(JSON.stringify(flowToDoc(initial.nodes, initial.edges, { notes: initialDoc.notes ?? "", checklist: initialDoc.checklist ?? [], forecast: initialForecast })));
   const version = useRef(initialVersion);
   const saving = useRef(false);
   const [status, setStatus] = useState<SaveStatus>("saved");
@@ -319,6 +327,39 @@ function Editor({ name: initialName, initialDoc, initialVersion, readOnly, backH
     }
   }
 
+  // ── Simulación ──
+  const engineInput = useMemo(() => {
+    const steps: EngineStep[] = [];
+    for (const n of nodes) if (n.type === "step") steps.push({ id: n.id, forecast: n.data.forecast });
+    const engineEdges: EngineEdge[] = edges.map((e) => ({
+      id: e.id,
+      source: e.source,
+      target: e.target,
+      visual: e.data?.lineType === "visual",
+      forecast: e.data?.forecast,
+    }));
+    return { steps, engineEdges };
+  }, [nodes, edges]);
+
+  const forecastView = useMemo<ForecastView>(() => {
+    const run = (s: Scenario) => computeForecast(engineInput.steps, engineInput.engineEdges, forecast, s);
+    const byScenario = { conservative: run("conservative"), expected: run("expected"), optimistic: run("optimistic") };
+    return { settings: forecast, result: byScenario[forecast.scenario], byScenario, ...makeFormatters(forecast.currency) };
+  }, [engineInput, forecast]);
+
+  const addForecastWidget = () => {
+    const existing = nodesRef.current.find((n) => n.type === "widget");
+    if (existing) {
+      setNodes((ns) => ns.map((n) => ({ ...n, selected: n.id === existing.id })));
+      rf.fitView({ nodes: [{ id: existing.id }], duration: 300, maxZoom: 1 });
+      return;
+    }
+    const pos = rf.screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+    history.record();
+    setNodes((ns) => [...ns.map((n) => ({ ...n, selected: false })), { id: crypto.randomUUID(), type: "widget", position: { x: pos.x - 230, y: pos.y - 150 }, selected: true, data: { kind: "forecast" } }]);
+    if (!forecast.showLayer) patchForecast({ showLayer: true });
+  };
+
   const addText = () => {
     const pos = rf.screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
     history.record();
@@ -439,12 +480,14 @@ function Editor({ name: initialName, initialDoc, initialVersion, readOnly, backH
     const f = docToFlow(newDoc);
     history.record();
     version.current = newVersion;
-    const restoredStr = JSON.stringify(flowToDoc(f.nodes, f.edges, { notes: newDoc.notes ?? "", checklist: newDoc.checklist ?? [] }));
+    const restoredForecast = newDoc.forecast ?? forecast;
+    const restoredStr = JSON.stringify(flowToDoc(f.nodes, f.edges, { notes: newDoc.notes ?? "", checklist: newDoc.checklist ?? [], forecast: restoredForecast }));
     lastSaved.current = restoredStr;
     setNodes(f.nodes);
     setEdges(f.edges);
     setNotes(newDoc.notes ?? "");
     setChecklist(newDoc.checklist ?? []);
+    setForecast(restoredForecast);
     setStatus("saved");
     setShowVersions(false);
     showToast("Versión restaurada.");
@@ -499,6 +542,34 @@ function Editor({ name: initialName, initialDoc, initialVersion, readOnly, backH
               )}
             </>
           )}
+          <span className="mx-1 h-5 w-px bg-line" />
+          <button
+            type="button"
+            onClick={() => patchForecast({ showLayer: !forecast.showLayer })}
+            aria-pressed={forecast.showLayer}
+            title={forecast.showLayer ? "Ocultar números de la simulación" : "Mostrar números de la simulación"}
+            className={`flex items-center gap-1.5 rounded px-2 py-1.5 text-xs font-medium ${forecast.showLayer ? "bg-accent/10 text-accent" : "text-muted hover:bg-canvas hover:text-ink"}`}
+          >
+            <Calculator size={15} aria-hidden /> Simulación
+          </button>
+          {forecast.showLayer && (
+            <>
+              <label htmlFor="scenario-select" className="sr-only">Escenario</label>
+              <select
+                id="scenario-select"
+                value={forecast.scenario}
+                onChange={(e) => patchForecast({ scenario: e.target.value as Scenario })}
+                className="rounded border border-line bg-surface px-1.5 py-1 text-xs text-ink"
+                title="Escenario que se muestra en el mapa"
+              >
+                {(Object.keys(SCENARIO_LABELS) as Scenario[]).map((s) => (
+                  <option key={s} value={s}>{SCENARIO_LABELS[s]}</option>
+                ))}
+              </select>
+              {!readOnly && <ToolButton label="Agregar resumen de la simulación" onClick={addForecastWidget}><LayoutDashboard size={17} /></ToolButton>}
+            </>
+          )}
+          <span className="mx-1 h-5 w-px bg-line" />
           <ToolButton label="Descargar PNG" onClick={onExport}><ImageDown size={17} /></ToolButton>
           {!shared && <ToolButton label="Versiones" onClick={() => setShowVersions(true)}><History size={17} /></ToolButton>}
           {!shared && !readOnly && actions.share && (
@@ -509,6 +580,7 @@ function Editor({ name: initialName, initialDoc, initialVersion, readOnly, backH
         </div>
       </header>
 
+      <ForecastContext value={forecastView}>
       <div className="flex min-h-0 flex-1">
         {showLibrary && !readOnly && (
           <aside className="w-64 shrink-0 border-r border-line bg-surface">
@@ -598,6 +670,7 @@ function Editor({ name: initialName, initialDoc, initialVersion, readOnly, backH
             onDelete={deleteSelection}
             upload={actions.uploadImage}
             customIcons={customIcons}
+            onForecastSettings={patchForecast}
             details={
               actions.details && !shared
                 ? { tags, isTemplate, onTags: onTagsChange, onTemplate: onTemplateChange }
@@ -611,6 +684,7 @@ function Editor({ name: initialName, initialDoc, initialVersion, readOnly, backH
           )}
         </aside>
       </div>
+      </ForecastContext>
 
       {showShare && actions.share && <ShareDialog actions={actions.share} onClose={() => setShowShare(false)} />}
 

@@ -1,11 +1,12 @@
 import { MarkerType, type Edge, type Node } from "@xyflow/react";
-import type { CanvasDoc, DocEdge, DocNode, EdgeData, ImageData, ShapeData, StepData, TextData } from "@/lib/canvas/types";
+import type { CanvasDoc, DocEdge, DocNode, EdgeData, ImageData, ShapeData, StepData, TextData, WidgetData } from "@/lib/canvas/types";
 
 export type StepNodeT = Node<StepData, "step">;
 export type TextNodeT = Node<TextData, "text">;
 export type ShapeNodeT = Node<ShapeData, "shape">;
 export type ImageNodeT = Node<ImageData, "image">;
-export type AppNode = StepNodeT | TextNodeT | ShapeNodeT | ImageNodeT;
+export type WidgetNodeT = Node<WidgetData, "widget">;
+export type AppNode = StepNodeT | TextNodeT | ShapeNodeT | ImageNodeT | WidgetNodeT;
 export type FlowEdgeT = Edge<EdgeData, "flow">;
 
 export const EDGE_MARKER = { type: MarkerType.ArrowClosed, width: 18, height: 18 } as const;
@@ -29,7 +30,7 @@ export function docToFlow(doc: CanvasDoc): { nodes: AppNode[]; edges: FlowEdgeT[
 export function flowToDoc(
   nodes: AppNode[],
   edges: FlowEdgeT[],
-  extra: Pick<CanvasDoc, "notes" | "checklist" | "viewport">,
+  extra: Pick<CanvasDoc, "notes" | "checklist" | "viewport" | "forecast">,
 ): CanvasDoc {
   const docNodes = nodes.map((n): DocNode => {
     const position = { x: Math.round(n.position.x), y: Math.round(n.position.y) };
@@ -53,6 +54,7 @@ export function flowToDoc(
         height: Math.round(n.height ?? n.measured?.height ?? 160),
       };
     }
+    if (n.type === "widget") return { id: n.id, type: "widget", position, data: { kind: "forecast" } };
     if (n.type === "text") return { id: n.id, type: "text", position, data: n.data };
     return { id: n.id, type: "step", position, data: n.data };
   });

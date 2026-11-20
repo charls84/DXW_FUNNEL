@@ -4,6 +4,7 @@ import { getCurrentMember } from "@/lib/auth";
 import { canEditWorkspaces } from "@/lib/permissions";
 import { getCanvas } from "@/lib/canvases";
 import { getSupabaseEnv } from "@/lib/env";
+import { getWorkspace } from "@/lib/workspaces";
 import {
   addCustomIcon,
   createRevision,
@@ -32,6 +33,7 @@ export default async function CanvasPage({ params }: PageProps<"/canvas/[canvasI
 
   const id = canvas.id;
   const ws = canvas.workspace_id;
+  const workspace = await getWorkspace(ws);
 
   return (
     <CanvasPageClient
@@ -42,6 +44,7 @@ export default async function CanvasPage({ params }: PageProps<"/canvas/[canvasI
       readOnly={!canEditWorkspaces(member.role)}
       tags={canvas.tags}
       isTemplate={canvas.is_template}
+      currency={workspace?.currency ?? "USD"}
       supabase={env}
       server={{
         save: saveCanvas.bind(null, id),

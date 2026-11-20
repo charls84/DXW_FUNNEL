@@ -174,6 +174,12 @@ integrations          id, workspace_id, provider, status, tokens_encrypted, sett
 - **Escenarios:** sobrescriben rates e inputs; el widget los muestra lado a lado.
 - **Forecast vs real:** cuando hay datos, cada nodo muestra los dos y el desvío.
 
+**Implementado (Fase 2, 20 nov 2026):** motor en `src/lib/forecast/engine.ts`.
+- **Escenarios:** factores globales del mapa (por defecto conservador: tasas ×0,8 y volumen ×0,9; optimista: tasas ×1,2 y volumen ×1,1) o valores propios por línea. Ninguna tasa pasa de 100 %.
+- **Ciclos:** las líneas que cierran un ciclo no suman personas y se avisa en el resumen.
+- **"Ventas":** cuenta a las personas que llegan a pasos con ingreso por persona; una recompra cuenta como otra venta.
+- **Pendiente:** forecast vs real, que llega con los datos del CRM (Fase 3).
+
 ### 6.4 Modos de vista
 - **Traffic:** cada nodo cuenta a todas las personas que cumplen su regla.
 - **Funnel:** solo personas que recorrieron los caminos dibujados.

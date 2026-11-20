@@ -55,7 +55,8 @@ body {
 }
 .react-flow__node-step,
 .react-flow__node-text,
-.react-flow__node-image {
+.react-flow__node-image,
+.react-flow__node-widget {
   background: transparent;
   border: none;
   padding: 0;

@@ -5,6 +5,8 @@ import { Handle, NodeResizer, Position, type NodeProps } from "@xyflow/react";
 import { ListChecks, StickyNote } from "lucide-react";
 import { CATEGORY_META, getCatalogItem } from "@/lib/canvas/catalog";
 import type { ImageNodeT, ShapeNodeT, StepNodeT, TextNodeT } from "./flow-types";
+import { useForecast } from "./forecast-context";
+import { ForecastWidgetNode } from "./forecast-widget";
 
 const HANDLES: { id: string; position: Position }[] = [
   { id: "t", position: Position.Top },
@@ -23,7 +25,23 @@ function Handles() {
   );
 }
 
-export const StepNode = memo(function StepNode({ data, selected }: NodeProps<StepNodeT>) {
+/** Números de la simulación bajo cada paso (personas, gasto de entrada, ingresos). */
+function StepForecastBadge({ id }: { id: string }) {
+  const fc = useForecast();
+  if (!fc || !fc.settings.showLayer) return null;
+  const r = fc.result.steps[id];
+  if (!r) return null;
+  return (
+    <div className="mt-1 flex flex-col items-center gap-0.5 rounded-md border border-line bg-surface px-2 py-1 text-[10.5px] leading-tight shadow-sm">
+      <span className="font-semibold text-ink">{fc.count(r.people)} personas</span>
+      {r.cost > 0 && <span className="text-danger">Gasto {fc.money(r.cost)}</span>}
+      {r.revenue > 0 && <span className="text-success">Ingresos {fc.money(r.revenue)}</span>}
+      {r.goalValue > 0 && <span className="text-muted">Meta {fc.money(r.goalValue)}</span>}
+    </div>
+  );
+}
+
+export const StepNode = memo(function StepNode({ id, data, selected }: NodeProps<StepNodeT>) {
   const item = getCatalogItem(data.catalogKey);
   const color = CATEGORY_META[data.category]?.color ?? "#334155";
   const Icon = item.icon;
@@ -72,6 +90,7 @@ export const StepNode = memo(function StepNode({ data, selected }: NodeProps<Ste
           )}
         </div>
       )}
+      <StepForecastBadge id={id} />
     </div>
   );
 });
@@ -119,4 +138,4 @@ export const ImageNode = memo(function ImageNode({ data, selected }: NodeProps<I
   );
 });
 
-export const nodeTypes = { step: StepNode, text: TextNode, shape: ShapeNode, image: ImageNode };
+export const nodeTypes = { step: StepNode, text: TextNode, shape: ShapeNode, image: ImageNode, widget: ForecastWidgetNode };

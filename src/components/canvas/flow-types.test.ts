@@ -13,7 +13,7 @@ describe("docToFlow / flowToDoc", () => {
     doc.notes = "Notas";
     const flow = docToFlow(doc);
     expect(flow.nodes.find((n) => n.id === "shape1")?.zIndex).toBe(-1);
-    const back = flowToDoc(flow.nodes, flow.edges, { notes: doc.notes, checklist: doc.checklist });
+    const back = flowToDoc(flow.nodes, flow.edges, { notes: doc.notes, checklist: doc.checklist, forecast: doc.forecast });
     expect(back).toEqual(doc);
   });
 });

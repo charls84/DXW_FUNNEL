@@ -56,6 +56,12 @@ export async function createCanvas(workspaceId: string, _prev: FormState, form: 
     return { error: "Elige una plantilla." };
   }
 
+  // La simulación usa la moneda del workspace donde se crea el mapa.
+  if (doc.forecast) {
+    const { data: ws } = await supabase.from("workspaces").select("currency").eq("id", workspaceId).maybeSingle();
+    if (ws?.currency) doc = { ...doc, forecast: { ...doc.forecast, currency: String(ws.currency).trim() } };
+  }
+
   const { data, error } = await supabase
     .from("canvases")
     .insert({ workspace_id: workspaceId, name, kind, doc, created_by: member.userId, updated_by: member.userId })
