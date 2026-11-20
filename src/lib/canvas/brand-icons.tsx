@@ -5,12 +5,16 @@ import type { SimpleIcon } from "simple-icons";
 export type IconProps = { size?: number | string; strokeWidth?: number | string; className?: string; "aria-hidden"?: boolean | "true" | "false" };
 export type IconComponent = ComponentType<IconProps>;
 
-/** Logo oficial desde Simple Icons (licencia CC0). Se pinta con `currentColor`. */
-export function brandIcon(si: SimpleIcon): IconComponent {
+/**
+ * Logo oficial desde Simple Icons (licencia CC0). Se pinta con `currentColor`.
+ * `scale` agranda los logos que son una palabra (Zoom, Uber, Zapier…): ocupan todo el ancho pero poca altura,
+ * así que a tamaño normal se leen muy pequeños. El dibujo puede salir del cuadro del ícono; el círculo del paso lo contiene.
+ */
+export function brandIcon(si: SimpleIcon, scale = 1): IconComponent {
   function Brand({ size = 24, className, "aria-hidden": hidden = true }: IconProps) {
     return (
-      <svg viewBox="0 0 24 24" width={size} height={size} fill="currentColor" className={className} aria-hidden={hidden} role="img">
-        <path d={si.path} />
+      <svg viewBox="0 0 24 24" width={size} height={size} fill="currentColor" className={className} aria-hidden={hidden} role="img" overflow="visible">
+        {scale === 1 ? <path d={si.path} /> : <path d={si.path} transform={`translate(12 12) scale(${scale}) translate(-12 -12)`} />}
       </svg>
     );
   }
@@ -21,11 +25,25 @@ export function brandIcon(si: SimpleIcon): IconComponent {
 /** Monograma para marcas cuyo logo no está disponible en Simple Icons. Se puede reemplazar subiendo el logo real. */
 export function letterIcon(text: string): IconComponent {
   const label = text.slice(0, 3);
-  const fontSize = label.length === 1 ? 14 : label.length === 2 ? 11.5 : 9;
+  // Tamaños pensados para que el monograma ocupe lo mismo que un logo real (casi todo el cuadro de 24).
+  const lowercase = label === label.toLowerCase();
+  // Letras anchas (W, M, m) se achican para no tocar el borde.
+  const wide = /[WMm]/.test(label);
+  const fontSize = label.length === 1 ? (wide ? 17 : 20) : label.length === 2 ? (lowercase ? 18 : 15) : label === label.toUpperCase() ? 10.5 : 12.5;
   function Letter({ size = 24, className, "aria-hidden": hidden = true }: IconProps) {
     return (
       <svg viewBox="0 0 24 24" width={size} height={size} className={className} aria-hidden={hidden} role="img">
-        <text x="12" y="12.5" textAnchor="middle" dominantBaseline="central" fontSize={fontSize} fontWeight={700} fontFamily="system-ui, -apple-system, 'Segoe UI', sans-serif" fill="currentColor">
+        <text
+          x="12"
+          y="12"
+          textAnchor="middle"
+          dominantBaseline="central"
+          fontSize={fontSize}
+          fontWeight={800}
+          letterSpacing={label.length > 1 ? -0.6 : 0}
+          fontFamily="system-ui, -apple-system, 'Segoe UI', Arial, sans-serif"
+          fill="currentColor"
+        >
           {label}
         </text>
       </svg>

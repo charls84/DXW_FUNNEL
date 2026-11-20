@@ -5,7 +5,7 @@ import {
   Presentation, Radio, Repeat, Rocket, Search, Share2, ShoppingCart, Sparkles, Target, ThumbsUp, Trophy, UserCheck,
   UserPlus, Users, Video, Wrench, XCircle, ArrowRightLeft, type LucideIcon,
 } from "lucide-react";
-import { siAirtable, siApple, siAppstore, siAsana, siBehance, siBrevo, siCalendly, siClaude, siClickup, siDiscord, siDribbble, siFacebook, siFigma, siGithub, siGmail, siGoogle, siGoogleads, siGoogleanalytics, siGooglecalendar, siGoogleforms, siGooglemaps, siGooglemeet, siGoogleplay, siGooglesheets, siGoogletagmanager, siHubspot, siInstagram, siIntercom, siJira, siLine, siLinktree, siLoom, siMailchimp, siMake, siMedium, siMercadopago, siMessenger, siMeta, siMiro, siN8n, siNotion, siOdoo, siPaypal, siPinterest, siReddit, siShopify, siSignal, siSnapchat, siSpotify, siStripe, siSubstack, siTelegram, siThreads, siTiktok, siTrello, siTwitch, siTypeform, siUber, siViber, siVimeo, siWaze, siWebflow, siWechat, siWhatsapp, siWix, siWordpress, siX, siYoutube, siZapier, siZoho, siZoom } from "simple-icons";
+import { siAirtable, siApple, siAppstore, siAsana, siBehance, siBrevo, siCalendly, siClaude, siClickup, siDiscord, siDribbble, siFacebook, siFigma, siGithub, siGmail, siGoogle, siGoogleads, siGoogleanalytics, siGooglecalendar, siGoogleforms, siGooglemaps, siGooglemeet, siGoogleplay, siGooglesheets, siGoogletagmanager, siHubspot, siInstagram, siIntercom, siJira, siLine, siLinktree, siLoom, siMailchimp, siMake, siMedium, siMercadopago, siMessenger, siMeta, siMiro, siN8n, siNotion, siOdoo, siPaypal, siPinterest, siReddit, siShopify, siSignal, siSnapchat, siSpotify, siStripe, siSubstack, siTelegram, siThreads, siTiktok, siTrello, siTwitch, siUber, siViber, siVimeo, siWaze, siWebflow, siWechat, siWhatsapp, siWix, siWordpress, siX, siYoutube, siZapier, siZoho, siZoom } from "simple-icons";
 import type { NodeCategory } from "./types";
 import { brandIcon, inkFor, letterIcon, type IconComponent } from "./brand-icons";
 
@@ -16,6 +16,8 @@ export type CatalogItem = {
   icon: LucideIcon | IconComponent;
   /** Color de fondo del paso cuando es una marca (si no, se usa el de la categoría). */
   brandColor?: string;
+  /** Color del logo cuando la marca lo usa oscuro sobre su color (Spotify, Linktree, Waze, Mercado Pago). */
+  brandInk?: string;
   /** Palabras extra para el buscador de la biblioteca. */
   keywords?: string;
 };
@@ -57,7 +59,7 @@ export const CATALOG: CatalogItem[] = [
   { key: "brand-reddit", label: "Reddit", category: "brand", icon: brandIcon(siReddit), brandColor: `#${siReddit.hex}`, keywords: "redes sociales comunidad" },
   { key: "brand-twitch", label: "Twitch", category: "brand", icon: brandIcon(siTwitch), brandColor: `#${siTwitch.hex}`, keywords: "video en vivo" },
   { key: "brand-discord", label: "Discord", category: "brand", icon: brandIcon(siDiscord), brandColor: `#${siDiscord.hex}`, keywords: "comunidad chat" },
-  { key: "brand-spotify", label: "Spotify", category: "brand", icon: brandIcon(siSpotify), brandColor: `#${siSpotify.hex}`, keywords: "podcast audio" },
+  { key: "brand-spotify", label: "Spotify", category: "brand", icon: brandIcon(siSpotify), brandColor: `#${siSpotify.hex}`, brandInk: "#0f172a", keywords: "podcast audio" },
   { key: "brand-vimeo", label: "Vimeo", category: "brand", icon: brandIcon(siVimeo), brandColor: `#${siVimeo.hex}`, keywords: "video" },
   { key: "brand-medium", label: "Medium", category: "brand", icon: brandIcon(siMedium), brandColor: `#${siMedium.hex}`, keywords: "blog contenido" },
   { key: "brand-substack", label: "Substack", category: "brand", icon: brandIcon(siSubstack), brandColor: `#${siSubstack.hex}`, keywords: "newsletter contenido" },
@@ -94,12 +96,12 @@ export const CATALOG: CatalogItem[] = [
   { key: "brand-hubspot", label: "HubSpot", category: "brand", icon: brandIcon(siHubspot), brandColor: `#${siHubspot.hex}`, keywords: "crm ventas marketing" },
   { key: "brand-salesforce", label: "Salesforce", category: "brand", icon: letterIcon("SF"), brandColor: "#00A1E0", keywords: "crm ventas" },
   { key: "brand-pipedrive", label: "Pipedrive", category: "brand", icon: letterIcon("P"), brandColor: "#017737", keywords: "crm ventas" },
-  { key: "brand-zoho", label: "Zoho", category: "brand", icon: brandIcon(siZoho), brandColor: `#${siZoho.hex}`, keywords: "crm" },
-  { key: "brand-odoo", label: "Odoo", category: "brand", icon: brandIcon(siOdoo), brandColor: `#${siOdoo.hex}`, keywords: "erp crm" },
+  { key: "brand-zoho", label: "Zoho", category: "brand", icon: brandIcon(siZoho, 1.45), brandColor: `#${siZoho.hex}`, keywords: "crm" },
+  { key: "brand-odoo", label: "Odoo", category: "brand", icon: brandIcon(siOdoo, 1.5), brandColor: `#${siOdoo.hex}`, keywords: "erp crm" },
   { key: "brand-gohighlevel", label: "GoHighLevel", category: "brand", icon: letterIcon("GHL"), brandColor: "#188BF6", keywords: "crm agencia" },
   { key: "brand-calendly", label: "Calendly", category: "brand", icon: brandIcon(siCalendly), brandColor: `#${siCalendly.hex}`, keywords: "agenda cita" },
   { key: "brand-calcom", label: "Cal.com", category: "brand", icon: letterIcon("Cal"), brandColor: "#292929", keywords: "agenda cita" },
-  { key: "brand-zoom", label: "Zoom", category: "brand", icon: brandIcon(siZoom), brandColor: `#${siZoom.hex}`, keywords: "videollamada reunión" },
+  { key: "brand-zoom", label: "Zoom", category: "brand", icon: brandIcon(siZoom, 1.6), brandColor: `#${siZoom.hex}`, keywords: "videollamada reunión" },
   { key: "brand-loom", label: "Loom", category: "brand", icon: brandIcon(siLoom), brandColor: `#${siLoom.hex}`, keywords: "video grabación" },
   { key: "brand-notion", label: "Notion", category: "brand", icon: brandIcon(siNotion), brandColor: `#${siNotion.hex}`, keywords: "documentos" },
   { key: "brand-trello", label: "Trello", category: "brand", icon: brandIcon(siTrello), brandColor: `#${siTrello.hex}`, keywords: "tareas tablero" },
@@ -111,31 +113,31 @@ export const CATALOG: CatalogItem[] = [
   { key: "brand-figma", label: "Figma", category: "brand", icon: brandIcon(siFigma), brandColor: `#${siFigma.hex}`, keywords: "diseño" },
   { key: "brand-canva", label: "Canva", category: "brand", icon: letterIcon("C"), brandColor: "#00C4CC", keywords: "diseño" },
   { key: "brand-airtable", label: "Airtable", category: "brand", icon: brandIcon(siAirtable), brandColor: `#${siAirtable.hex}`, keywords: "base de datos" },
-  { key: "brand-typeform", label: "Typeform", category: "brand", icon: brandIcon(siTypeform), brandColor: `#${siTypeform.hex}`, keywords: "formulario" },
+  { key: "brand-typeform", label: "Typeform", category: "brand", icon: letterIcon("Tf"), brandColor: "#262627", keywords: "formulario" },
   { key: "brand-tally", label: "Tally", category: "brand", icon: letterIcon("T"), brandColor: "#0f172a", keywords: "formulario" },
   { key: "brand-mailchimp", label: "Mailchimp", category: "brand", icon: brandIcon(siMailchimp), brandColor: `#${siMailchimp.hex}`, keywords: "email marketing" },
   { key: "brand-brevo", label: "Brevo", category: "brand", icon: brandIcon(siBrevo), brandColor: `#${siBrevo.hex}`, keywords: "email marketing" },
   { key: "brand-activecampaign", label: "ActiveCampaign", category: "brand", icon: letterIcon("AC"), brandColor: "#356AE6", keywords: "email marketing automatización" },
   { key: "brand-klaviyo", label: "Klaviyo", category: "brand", icon: letterIcon("K"), brandColor: "#232426", keywords: "email marketing ecommerce" },
-  { key: "brand-zapier", label: "Zapier", category: "brand", icon: brandIcon(siZapier), brandColor: `#${siZapier.hex}`, keywords: "automatización" },
+  { key: "brand-zapier", label: "Zapier", category: "brand", icon: brandIcon(siZapier, 1.5), brandColor: `#${siZapier.hex}`, keywords: "automatización" },
   { key: "brand-make", label: "Make", category: "brand", icon: brandIcon(siMake), brandColor: `#${siMake.hex}`, keywords: "automatización" },
   { key: "brand-n8n", label: "n8n", category: "brand", icon: brandIcon(siN8n), brandColor: `#${siN8n.hex}`, keywords: "automatización" },
   { key: "brand-chatgpt", label: "ChatGPT", category: "brand", icon: letterIcon("AI"), brandColor: "#10A37F", keywords: "ia openai" },
   { key: "brand-claude", label: "Claude", category: "brand", icon: brandIcon(siClaude), brandColor: `#${siClaude.hex}`, keywords: "ia anthropic" },
   { key: "brand-wordpress", label: "WordPress", category: "brand", icon: brandIcon(siWordpress), brandColor: `#${siWordpress.hex}`, keywords: "sitio web" },
   { key: "brand-webflow", label: "Webflow", category: "brand", icon: brandIcon(siWebflow), brandColor: `#${siWebflow.hex}`, keywords: "sitio web" },
-  { key: "brand-wix", label: "Wix", category: "brand", icon: brandIcon(siWix), brandColor: `#${siWix.hex}`, keywords: "sitio web" },
+  { key: "brand-wix", label: "Wix", category: "brand", icon: brandIcon(siWix, 1.35), brandColor: `#${siWix.hex}`, keywords: "sitio web" },
   { key: "brand-shopify", label: "Shopify", category: "brand", icon: brandIcon(siShopify), brandColor: `#${siShopify.hex}`, keywords: "ecommerce tienda" },
-  { key: "brand-linktree", label: "Linktree", category: "brand", icon: brandIcon(siLinktree), brandColor: `#${siLinktree.hex}`, keywords: "bio links" },
+  { key: "brand-linktree", label: "Linktree", category: "brand", icon: brandIcon(siLinktree), brandColor: `#${siLinktree.hex}`, brandInk: "#0f172a", keywords: "bio links" },
   { key: "brand-stripe", label: "Stripe", category: "brand", icon: brandIcon(siStripe), brandColor: `#${siStripe.hex}`, keywords: "pagos" },
   { key: "brand-paypal", label: "PayPal", category: "brand", icon: brandIcon(siPaypal), brandColor: `#${siPaypal.hex}`, keywords: "pagos" },
-  { key: "brand-mercadopago", label: "Mercado Pago", category: "brand", icon: brandIcon(siMercadopago), brandColor: `#${siMercadopago.hex}`, keywords: "pagos" },
+  { key: "brand-mercadopago", label: "Mercado Pago", category: "brand", icon: brandIcon(siMercadopago), brandColor: `#${siMercadopago.hex}`, brandInk: "#0f172a", keywords: "pagos" },
   { key: "brand-wompi", label: "Wompi", category: "brand", icon: letterIcon("W"), brandColor: "#1F2937", keywords: "pagos colombia" },
   { key: "brand-nequi", label: "Nequi", category: "brand", icon: letterIcon("N"), brandColor: "#200020", keywords: "pagos colombia" },
   { key: "brand-bancolombia", label: "Bancolombia", category: "brand", icon: letterIcon("B"), brandColor: "#FDDA24", keywords: "pagos banco colombia" },
-  { key: "brand-uber", label: "Uber", category: "brand", icon: brandIcon(siUber), brandColor: `#${siUber.hex}`, keywords: "transporte" },
+  { key: "brand-uber", label: "Uber", category: "brand", icon: brandIcon(siUber, 1.5), brandColor: `#${siUber.hex}`, keywords: "transporte" },
   { key: "brand-rappi", label: "Rappi", category: "brand", icon: letterIcon("R"), brandColor: "#FF441F", keywords: "entregas colombia" },
-  { key: "brand-waze", label: "Waze", category: "brand", icon: brandIcon(siWaze), brandColor: `#${siWaze.hex}`, keywords: "mapas" },
+  { key: "brand-waze", label: "Waze", category: "brand", icon: brandIcon(siWaze), brandColor: `#${siWaze.hex}`, brandInk: "#0f172a", keywords: "mapas" },
   // Páginas
   { key: "page-landing", label: "Landing page", category: "page", icon: LayoutTemplate },
   { key: "page-optin", label: "Opt-in", category: "page", icon: Inbox },
@@ -193,7 +195,7 @@ const BY_KEY = new Map(CATALOG.map((i) => [i.key, i]));
 /** Colores de fondo y de ícono de un paso: marca si la tiene, categoría si no. */
 export function stepColors(item: CatalogItem): { bg: string; fg: string } {
   const bg = item.brandColor ?? CATEGORY_META[item.category]?.color ?? "#334155";
-  return { bg, fg: item.brandColor ? inkFor(item.brandColor) : "#ffffff" };
+  return { bg, fg: item.brandInk ?? (item.brandColor ? inkFor(item.brandColor) : "#ffffff") };
 }
 
 export function getCatalogItem(key: string): CatalogItem {
